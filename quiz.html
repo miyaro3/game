@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Twitch Quiz Game - Neko Custom</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: transparent; font-family: 'Arial', sans-serif; color: white; }
+        #stage { width: 852px; height: 480px; position: relative; display: flex; }
+
+        /* サイドバー：スコアランキング */
+        #sidebar { width: 180px; background: rgba(0, 0, 0, 0.85); border-right: 2px solid #444; padding: 10px; box-sizing: border-box; }
+        #sidebar h3 { font-size: 14px; margin: 0 0 10px 0; color: #ffee00; text-align: center; }
+        .score-item { font-size: 12px; margin-bottom: 5px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; padding: 2px 0; }
+
+        /* メインエリア */
+        #main-area { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
+        #question-box { height: 70px; background: rgba(0, 0, 0, 0.9); margin: 10px; padding: 15px; border-radius: 10px; border: 2px solid #fff; font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+
+        #answer-zones { flex-grow: 1; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); gap: 10px; padding: 10px; }
+        .zone { background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px dashed #666; position: relative; }
+        .zone-label { position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 4px; font-size: 14px; color: #ffee00; font-weight: bold; }
+
+        /* 猫コンテナ */
+        .cat-container {
+            position: absolute;
+            width: 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            /* 移動アニメーションの速度設定（後述のJS変数と同期推奨） */
+            transition: left 0.8s ease-in-out, top 0.8s ease-in-out, opacity 1.5s, transform 1.5s;
+            z-index: 10;
+        }
+
+        .pixel-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 4px);
+            grid-template-rows: repeat(10, 4px);
+            /* 待機中のふわふわアニメーション速度 */
+            animation: float 2.5s infinite ease-in-out;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .px { width: 4px; height: 4px; }
+        .user-name { font-size: 10px; text-align: center; text-shadow: 2px 2px 2px #000; margin-top: 4px; font-weight: bold; }
+
+        /* 正解：喜びジャンプ */
+        .happy-jump { animation: happy 0.4s infinite !important; }
+        @keyframes happy {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-35px) scale(1.1); }
+        }
+
+        /* 不正解：ゆっくり沈む */
+        .sink-down { 
+            transform: translateY(150px) rotate(10deg); 
+            opacity: 0; 
+            pointer-events: none; 
+            transition: transform 2.5s ease-in, opacity 2.0s ease-in !important; 
+        }
+
+        #channel-warning { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #ff4444; color: white; padding: 20px; border-radius: 10px; font-weight: bold; z-index: 100; }
+    </style>
+</head>
+<body>
+    <div id="stage">
+        <div id="sidebar">
+            <h3>SCORE RANKING</h3>
+            <div id="score-list"></div>
+        </div>
+        <div id="main-area">
+            <div id="question-box">Waiting for !quiz...</div>
+            <div id="answer-zones">
+                <div class="zone" id="zone-1"><span class="zone-label">!1</span></div>
+                <div class="zone" id="zone-2"><span class="zone-label">!2</span></div>
+                <div class="zone" id="zone-3"><span class="zone-label">!3</span></div>
+                <div class="zone" id="zone-4"><span class="zone-label">!4</span></div>
+            </div>
+        </div>
+    </div>
+    <div id="channel-warning" style="display:none;">URLに ?channel=チャンネル名 を追加してください</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
+    <script>
+        // ==========================================
+        // 設定パラメータ集約エリア
+        // ==========================================
+        const CONFIG = {
+            DEFAULT_POINTS: 100,      // クイズ1問あたりのデフォルトポイント
+            RANKING_COUNT: 15,        // サイドバーに表示する人数
+            CAT_SIZE_PX: 4,           // ドット1つの大きさ
+            MOVE_SPEED: "0.8s",       // 枠を移動する時の速度
+            SINK_SPEED: "2.5s",       // 不正解で沈む時の速度（CSSと同期）
+            
+            // 猫のドット絵デザイン (12列 x 10行)
+            // 0:透明, 1:メイン(ユーザー色), 2:目(黒), 3:耳・鼻(ピンク), 4:尻尾(ユーザー色濃いめ)
+            CAT_SHAPE: [
+                "000000000000",
+                "010000000100",
+                "011000001100",
+                "111111111104",
+                "112111121104",
+                "111133111144",
+                "111111111140",
+                "011111111100",
+                "001100011000",
+                "000000000000"
+            ].join(""),
+            
+            COLORS: {
+                EYE: "#000000",
+                DETAIL: "#ffb7c5", // 耳の内側や鼻の色
+                SHADOW_RATIO: 0.8  // 尻尾などの影の色の暗さ
+            }
+        };
+
+        // ==========================================
+        // 内部変数
+        // ==========================================
+        let scores = {};
+        let quizActive = false;
+        let currentQuizPoints = CONFIG.DEFAULT_POINTS;
+        let participants = {}; 
+
+        const params = new URLSearchParams(window.location.search);
+        const channel = params.get('channel');
+        if (!channel) { document.getElementById('channel-warning').style.display = 'block'; } else { ComfyJS.Init(channel); }
+
+        // ユーザー名から固定の色（HSL）を生成
+        function getUserColors(name) {
+            let hash = 0;
+            for (let i = 0; i < name.length; i++) { hash = name.charCodeAt(i) + ((hash << 5) - hash); }
+            const h = Math.abs(hash) % 360;
+            return {
+                main: `hsl(${h}, 75%, 75%)`,
+                dark: `hsl(${h}, 60%, 50%)` // 尻尾用
+            };
+        }
+
+        ComfyJS.onCommand = (user, command, message, flags, extra) => {
+            const userId = user.toLowerCase();
+
+            // 管理者用コマンド
+            if (flags.broadcaster || flags.mod) {
+                if (command === "quiz") {
+                    startQuiz(message);
+                }
+                if (command === "answer") {
+                    endQuiz(message);
+                }
+                if (command === "point") {
+                    currentQuizPoints = parseInt(message) || CONFIG.DEFAULT_POINTS;
+                }
+            }
+
+            // 回答者用コマンド
+            if (quizActive && ["1", "2", "3", "4"].includes(command)) {
+                spawnOrMoveCat(user, command);
+            }
+        };
+
+        function startQuiz(text) {
+            // 前回の回答者を即座に削除
+            Object.values(participants).forEach(p => p.el.remove());
+            participants = {};
+            
+            quizActive = true;
+            document.getElementById('question-box').innerText = "Q: " + text;
+            
+            // ポイントをリセット（毎回指定しない場合はデフォルトに）
+            console.log(`Quiz Started: Points = ${currentQuizPoints}`);
+        }
+
+        function spawnOrMoveCat(user, zoneId) {
+            const userId = user.toLowerCase();
+            const targetZone = document.getElementById('zone-' + zoneId);
+            const zoneRect = targetZone.getBoundingClientRect();
+            
+            // 枠内のランダムな座標を計算（猫がはみ出ないように調整）
+            const newLeft = targetZone.offsetLeft + Math.random() * (zoneRect.width - 65);
+            const newTop = targetZone.offsetTop + Math.random() * (zoneRect.height - 75);
+
+            if (!participants[userId]) {
+                const el = createCatElement(user);
+                el.style.left = "-100px"; // 画面左外からスライド登場
+                el.style.top = newTop + "px";
+                document.getElementById('main-area').appendChild(el);
+                
+                participants[userId] = { el: el, zoneId: zoneId };
+                setTimeout(() => {
+                    el.style.left = newLeft + "px";
+                    el.style.top = newTop + "px";
+                }, 50);
+            } else {
+                // 移動
+                participants[userId].zoneId = zoneId;
+                participants[userId].el.style.left = newLeft + "px";
+                participants[userId].el.style.top = newTop + "px";
+            }
+        }
+
+        function createCatElement(userName) {
+            const userColors = getUserColors(userName);
+            const container = document.createElement('div');
+            container.className = 'cat-container';
+
+            const grid = document.createElement('div');
+            grid.className = 'pixel-grid';
+
+            // ドットの生成
+            for (let i = 0; i < CONFIG.CAT_SHAPE.length; i++) {
+                const px = document.createElement('div');
+                px.className = 'px';
+                const type = CONFIG.CAT_SHAPE[i];
+                
+                switch(type) {
+                    case "1": px.style.backgroundColor = userColors.main; break;
+                    case "2": px.style.backgroundColor = CONFIG.COLORS.EYE; break;
+                    case "3": px.style.backgroundColor = CONFIG.COLORS.DETAIL; break;
+                    case "4": px.style.backgroundColor = userColors.dark; break; // 尻尾
+                    default: px.style.backgroundColor = "transparent";
+                }
+                grid.appendChild(px);
+            }
+
+            const nameTag = document.createElement('div');
+            nameTag.className = 'user-name';
+            nameTag.innerText = userName;
+
+            container.appendChild(grid);
+            container.appendChild(nameTag);
+            return container;
+        }
+
+        function endQuiz(correctAns) {
+            quizActive = false;
+            document.getElementById('question-box').innerText = `正解は [ ${correctAns} ] でした！`;
+
+            Object.keys(participants).forEach(userId => {
+                const p = participants[userId];
+                if (p.zoneId === correctAns) {
+                    p.el.classList.add('happy-jump');
+                    scores[userId] = (scores[userId] || 0) + currentQuizPoints;
+                } else {
+                    // 沈むアニメーションを付与
+                    p.el.classList.add('sink-down');
+                }
+            });
+            updateScoreBoard();
+        }
+
+        function updateScoreBoard() {
+            const listEl = document.getElementById('score-list');
+            listEl.innerHTML = "";
+            Object.entries(scores)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, CONFIG.RANKING_COUNT)
+                .forEach(([name, score]) => {
+                    const div = document.createElement('div');
+                    div.className = 'score-item';
+                    div.innerHTML = `<span>${name}</span><span>${score}pt</span>`;
+                    listEl.appendChild(div);
+                });
+        }
+    </script>
+</body>
+</html>
