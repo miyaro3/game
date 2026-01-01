@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Miyaro Park - 遊び方ガイド</title>
+    <title>Animal Park - 遊び方ガイド & 設定</title>
     <style>
         :root {
             --primary-bg: #1a1a1a;
@@ -11,6 +11,7 @@
             --accent-color: #ffee00;
             --text-color: #ffffff;
             --command-color: #ffb7c5;
+            --twitch-purple: #9146ff;
         }
         body {
             font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
@@ -33,13 +34,12 @@
         .intro { text-align: center; margin: 20px 0; font-size: 1.1rem; }
 
         section { margin-top: 40px; }
-        h2 { border-left: 5px solid var(--accent-color); padding-left: 15px; font-size: 1.5rem; }
+        h2 { border-left: 5px solid var(--accent-color); padding-left: 15px; font-size: 1.5rem; margin-bottom: 20px; }
 
         .command-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 15px;
-            margin-top: 20px;
         }
         .card {
             background: var(--card-bg);
@@ -59,6 +59,58 @@
         }
         .desc { margin-top: 8px; font-size: 0.95rem; color: #ccc; }
 
+        /* 設定セクションのスタイル */
+        .setup-section {
+            background: #252525;
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid var(--twitch-purple);
+            margin-top: 60px;
+        }
+        .setup-section h2 { border-left-color: var(--twitch-purple); }
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 10px; font-weight: bold; }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            background: #333;
+            color: white;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        .url-display {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #44ff44;
+            margin-bottom: 15px;
+            word-break: break-all;
+            min-height: 20px;
+        }
+        .btn-copy {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--twitch-purple);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .btn-copy:hover { background-color: #772ce8; }
+        .copy-msg {
+            text-align: center;
+            color: #44ff44;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
         .note {
             background: rgba(255, 238, 0, 0.1);
             border: 1px dashed var(--accent-color);
@@ -73,82 +125,82 @@
             font-size: 0.8rem;
             color: #666;
         }
-        .emoji { font-size: 1.4rem; vertical-align: middle; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <header>
-        <h1>🐾 Miyaro Park 遊び方ガイド</h1>
+        <h1>🐾 Animal Park 遊び方ガイド</h1>
         <p class="intro">チャットでコマンドを打つと、画面上のあなたのキャラが動くよ！</p>
     </header>
 
     <section>
         <h2>基本のあそびかた</h2>
-        <p>配信中にチャットを打つだけで、あなたの分身（アバター）が画面に出現します。あとはコマンドを送信して、他のリスナーと遊んだり、イタズラしたりしてみよう！</p>
+        <p>配信中にチャットを打つだけで、あなたの分身（アバター）が画面に出現します。あとはコマンドを送信して、他のリスナーと遊んでみよう！</p>
     </section>
 
     <section>
-        <h2>移動コマンド</h2>
+        <h2>コマンド一覧</h2>
         <div class="command-grid">
-            <div class="card">
-                <span class="cmd">!up</span> / <span class="cmd">!down</span>
-                <p class="desc">上下に勢いよく飛び出します。邪魔なキャラをはじき飛ばせるぞ！</p>
-            </div>
-            <div class="card">
-                <span class="cmd">!left</span> / <span class="cmd">!right</span>
-                <p class="desc">左右にダッシュ！進路にいるキャラはなぎ倒されます。</p>
-            </div>
-            <div class="card">
-                <span class="cmd">!fall</span>
-                <p class="desc">全員が重力で一斉に地面に落下します。</p>
-            </div>
-            <div class="card">
-                <span class="cmd">!set</span>
-                <p class="desc">全員が画面下にきれいに整列します（5秒で解除）。</p>
-            </div>
-        </div>
-    </section>
-
-    <section>
-        <h2>アクション・攻撃</h2>
-        <div class="command-grid">
-            <div class="card">
-                <span class="cmd">!fire</span>
-                <p class="desc">360度ランダムな方向に🔥を発射！当たったキャラを吹き飛ばす。</p>
-            </div>
-            <div class="card">
-                <span class="cmd">!fire [名前]</span>
-                <p class="desc">特定の相手を狙い撃ちして🔥を飛ばします。</p>
-            </div>
-            <div class="card">
-                <span class="cmd">!battle [名前]</span>
-                <p class="desc">指定した相手に突撃！勝てば飛ばし、負ければ自分が飛びます。</p>
-            </div>
-            <div class="card">
-                <span class="cmd">!bomb</span>
-                <p class="desc">自分が大爆発して退場！周囲のキャラを巻き込んで吹き飛ばします。</p>
-            </div>
-            <div class="card">
-                <span class="cmd">!shake</span> / <span class="cmd">!dance</span>
-                <p class="desc">その場でプルプル震えたり、ダンスしてアピール！</p>
-            </div>
-            <div class="card">
-                <span class="cmd">!clean</span>
-                <p class="desc">画面左から巨大な掃除棒が登場！全員を右端へ「雪かき」します。</p>
-            </div>
+            <div class="card"><span class="cmd">!up / down / left / right</span><p class="desc">その方向へダッシュ！キャラをはじき飛ばします。</p></div>
+            <div class="card"><span class="cmd">!fall</span><p class="desc">全員が重力で一斉に地面に落下します。</p></div>
+            <div class="card"><span class="cmd">!set</span><p class="desc">全員が画面下にきれいに整列します（5秒で解除）。</p></div>
+            <div class="card"><span class="cmd">!fire [名前]</span><p class="desc">狙い撃ちで🔥を発射！指定なしだとランダム方向に飛ばします。</p></div>
+            <div class="card"><span class="cmd">!battle [名前]</span><p class="desc">相手に突撃！はじき飛ばすか飛ばされるかの真剣勝負。</p></div>
+            <div class="card"><span class="cmd">!bomb</span><p class="desc">自分が大爆発！周囲のキャラを巻き込んで吹き飛ばします。</p></div>
+            <div class="card"><span class="cmd">!clean</span><p class="desc">巨大な棒が登場し、全員を右端へ「雪かき」します。</p></div>
+            <div class="card"><span class="cmd">!shake / dance</span><p class="desc">その場で震えたり踊ったりしてアピール！</p></div>
         </div>
     </section>
 
     <div class="note">
-        <strong>💡 ヒント:</strong> キャラクターは放っておくと自由にお散歩します。チャットを打つと頭上に吹き出しが出るので、みんなで会話を楽しもう！
+        <strong>💡 ヒント:</strong> キャラクターは放っておくと自由にお散歩します。チャットを打つと頭上に吹き出しが出るよ！
     </div>
 
+    <section class="setup-section">
+        <h2>配信者用ツール（OBS設定）</h2>
+        <div class="input-group">
+            <label for="twitchId">Twitch チャンネル名を入力</label>
+            <input type="text" id="twitchId" placeholder="your_channel_name" oninput="generateUrl()">
+        </div>
+        <label>OBSブラウザソース用URL</label>
+        <div class="url-display" id="generatedUrl">IDを入力してください...</div>
+        <button class="btn-copy" onclick="copyToClipboard()">URLをコピーする</button>
+        <div class="copy-msg" id="copyMsg">コピーしました！OBSに貼り付けてください。</div>
+    </section>
+
     <footer>
-        &copy; 2026 Miyaro Park Interactive System
+        &copy; 2026 Animal Park Interactive System
     </footer>
 </div>
+
+<script>
+    function generateUrl() {
+        const id = document.getElementById('twitchId').value.trim();
+        const display = document.getElementById('generatedUrl');
+        
+        if (id) {
+            // ゲーム本体ファイル名を 'index.html' と想定
+            const currentPath = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+            const fullUrl = currentPath + "index.html?channel=" + id;
+            display.innerText = fullUrl;
+        } else {
+            display.innerText = "IDを入力してください...";
+        }
+    }
+
+    function copyToClipboard() {
+        const urlText = document.getElementById('generatedUrl').innerText;
+        if (urlText.includes("IDを入力してください")) return;
+
+        navigator.clipboard.writeText(urlText).then(() => {
+            const msg = document.getElementById('copyMsg');
+            msg.style.display = 'block';
+            setTimeout(() => { msg.style.display = 'none'; }, 3000);
+        });
+    }
+</script>
 
 </body>
 </html>
