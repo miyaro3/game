@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Quiz & Bet Neko Game - Bug Fixed</title>
+    <title>Twitch Quiz & Bet - Final Stabilized</title>
     <style>
         body { margin: 0; overflow: hidden; background: transparent; font-family: 'Arial', 'Meiryo', sans-serif; color: white; }
         #stage { width: 852px; height: 480px; position: relative; display: flex; }
@@ -23,15 +23,11 @@
         .happy-jump { animation: happy 0.4s infinite !important; }
         @keyframes happy { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-35px) scale(1.1); } }
         .sink-down { transform: translateY(150px) rotate(15deg) !important; opacity: 0 !important; pointer-events: none; }
-        #channel-warning { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #ff4444; color: white; padding: 20px; border-radius: 10px; font-weight: bold; z-index: 100; }
     </style>
 </head>
 <body>
     <div id="stage">
-        <div id="sidebar">
-            <h3>SCORE RANKING</h3>
-            <div id="score-list"></div>
-        </div>
+        <div id="sidebar"><h3>SCORE RANKING</h3><div id="score-list"></div></div>
         <div id="main-area">
             <div id="question-box">!quiz または !bet で開始</div>
             <div id="answer-zones">
@@ -42,48 +38,33 @@
             </div>
         </div>
     </div>
-    <div id="channel-warning" style="display:none;">URL末尾に ?channel=チャンネル名 を追加してください</div>
 
     <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
     <script>
-        const CONFIG = {
-            DEFAULT_POINTS: 100, 
-            DEFAULT_BET: 100,      
-            RANKING_COUNT: 15,     
-            CAT_SHAPE: ["000000000000", "010000000100", "011000001100", "111111111104", "112111121104", "111133111144", "111111111140", "011111111100", "001100011000", "000000000000"].join(""),
-            COLORS: { EYE: "#000000", DETAIL: "#ffb7c5" }
-        };
-
-        let scores = {};
-        let quizActive = false;
-        let gameMode = "quiz";
-        let currentQuizPoints = CONFIG.DEFAULT_POINTS;
-        let participants = {}; 
-        let currentQuestionText = ""; 
-        let totalPool = 0;
-        let closeTimerInterval = null;
-
+        const CONFIG = { DEFAULT_POINTS: 100, DEFAULT_BET: 100, CAT_SHAPE: ["000000000000", "010000000100", "011000001100", "111111111104", "112111121104", "111133111144", "111111111140", "011111111100", "001100011000", "000000000000"].join(""), COLORS: { EYE: "#000000", DETAIL: "#ffb7c5" } };
+        let scores = {}, quizActive = false, gameMode = "quiz", currentQuizPoints = CONFIG.DEFAULT_POINTS, participants = {}, currentQuestionText = "", totalPool = 0, closeTimerInterval = null;
         const params = new URLSearchParams(window.location.search);
         const channel = params.get('channel');
-        if (!channel) { document.getElementById('channel-warning').style.display = 'block'; } else { ComfyJS.Init(channel); }
+        if (channel) ComfyJS.Init(channel);
 
         function getUserColors(name) {
-            let hash = 0;
-            for (let i = 0; i < name.length; i++) { hash = name.charCodeAt(i) + ((hash << 5) - hash); }
-            const h = Math.abs(hash) % 360;
-            return { main: `hsl(${h}, 70%, 75%)`, dark: `hsl(${h}, 60%, 55%)` };
+            let hash = 0; for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+            const h = Math.abs(hash) % 360; return { main: `hsl(${h}, 70%, 75%)`, dark: `hsl(${h}, 60%, 55%)` };
         }
 
         ComfyJS.onCommand = (user, command, message, flags, extra) => {
-            const userId = user.toLowerCase();
             if (flags.broadcaster || flags.mod) {
-                if (command === "quiz") { gameMode = "quiz"; startNewGame(message); }
-                if (command === "bet") { gameMode = "bet"; totalPool = 0; startNewGame(message); }
-                if (command === "answer") { if(closeTimerInterval) clearInterval(closeTimerInterval); endGame(message); }
-                if (command === "close") { startCloseTimer(parseInt(message) || 30); }
+                if (command === "quiz" || command === "bet") {
+                    if (!message || message.trim() === "") {
+                        document.getElementById('question-box').innerHTML = `<div style="color: #ff4444;">エラー: 問題文を入力してください</div>`;
+                        return;
+                    }
+                    gameMode = command; totalPool = 0; startNewGame(message);
+                }
+                if (command === "answer" && currentQuestionText) { if(closeTimerInterval) clearInterval(closeTimerInterval); endGame(message); }
+                if (command === "close") startCloseTimer(parseInt(message) || 30);
                 if (command === "point") {
-                    const parts = message.trim().split(/\s+/);
-                    const amount = parseInt(parts[0]);
+                    const parts = message.trim().split(/\s+/); const amount = parseInt(parts[0]);
                     if (!isNaN(amount)) {
                         const target = parts[1] ? parts[1].toLowerCase() : null;
                         if (target) scores[target] = (scores[target] || 0) + amount;
@@ -93,156 +74,89 @@
                 }
             }
             if (quizActive && ["1", "2", "3", "4"].includes(command)) {
-                let isDefault = false;
-                let betValue = parseInt(message.trim());
-                if (isNaN(betValue) || betValue <= 0) { betValue = CONFIG.DEFAULT_BET; isDefault = true; }
-                spawnOrMoveCat(user, command, betValue, isDefault);
+                let isDefault = false, val = parseInt(message.trim());
+                if (isNaN(val) || val <= 0) { val = CONFIG.DEFAULT_BET; isDefault = true; }
+                spawnOrMoveCat(user, command, val, isDefault);
             }
         };
 
         function startNewGame(text) {
             if (closeTimerInterval) clearInterval(closeTimerInterval);
-            Object.keys(participants).forEach(userId => {
-                const p = participants[userId];
-                if (p.betAmount > 0) scores[userId] = (scores[userId] || 0) + p.betAmount;
-                p.el.remove();
+            Object.keys(participants).forEach(id => { 
+                if (participants[id].betAmount > 0) scores[id] = (scores[id] || 0) + participants[id].betAmount;
+                participants[id].el.remove();
             });
-            updateScoreBoard();
-            participants = {};
-            quizActive = true;
-            currentQuestionText = text;
-            updateStatusDisplay();
+            participants = {}; quizActive = true; currentQuestionText = text;
+            updateStatusDisplay(); updateScoreBoard();
         }
 
         function updateStatusDisplay(footerHtml = "") {
             const modeName = gameMode === "quiz" ? `Quiz (${currentQuizPoints}pt)` : `Bet (Pool: ${totalPool})`;
-            document.getElementById('question-box').innerHTML = `
-                <div style="font-size:0.7em; color:#aaa;">[${modeName}]</div>
-                <div>Q: ${currentQuestionText}</div>
-                ${footerHtml}
-            `;
+            document.getElementById('question-box').innerHTML = `<div style="font-size:0.7em; color:#aaa;">[${modeName}]</div><div>Q: ${currentQuestionText}</div>${footerHtml}`;
         }
 
         function spawnOrMoveCat(user, zoneId, betInput, isDefault) {
-            const userId = user.toLowerCase();
-            const targetZone = document.getElementById('zone-' + zoneId);
-            const zoneRect = targetZone.getBoundingClientRect();
-            const newLeft = targetZone.offsetLeft + Math.random() * (zoneRect.width - 60);
-            const newTop = targetZone.offsetTop + Math.random() * (zoneRect.height - 70);
-            let currentScore = scores[userId] || 0;
+            const userId = user.toLowerCase(), targetZone = document.getElementById('zone-' + zoneId), zoneRect = targetZone.getBoundingClientRect();
+            const nL = targetZone.offsetLeft + Math.random() * (zoneRect.width - 60), nT = targetZone.offsetTop + Math.random() * (zoneRect.height - 70);
             if (!participants[userId]) {
-                let actualBet = (gameMode === "bet") ? Math.min(currentScore, betInput) : 0;
-                scores[userId] = currentScore - actualBet;
-                totalPool += actualBet;
-                const el = createCatElement(user);
-                el.style.left = "-100px"; el.style.top = newTop + "px";
+                let actB = (gameMode === "bet") ? Math.min(scores[userId] || 0, betInput) : 0;
+                scores[userId] = (scores[userId] || 0) - actB; totalPool += actB;
+                const el = createCatElement(user); el.style.left = "-100px"; el.style.top = nT + "px";
                 document.getElementById('main-area').appendChild(el);
-                participants[userId] = { el: el, zoneId: zoneId, betAmount: actualBet };
-                if (gameMode === "bet") el.querySelector('.bet-amount-label').innerText = `${actualBet}pt`;
-                setTimeout(() => { el.style.left = newLeft + "px"; el.style.top = newTop + "px"; }, 50);
+                participants[userId] = { el: el, zoneId: zoneId, betAmount: actB };
+                if (gameMode === "bet") el.querySelector('.bet-amount-label').innerText = `${actB}pt`;
+                setTimeout(() => { el.style.left = nL + "px"; el.style.top = nT + "px"; }, 50);
             } else {
-                const p = participants[userId];
-                p.zoneId = zoneId;
-                p.el.style.left = newLeft + "px"; p.el.style.top = newTop + "px";
+                const p = participants[userId]; p.zoneId = zoneId; p.el.style.left = nL + "px"; p.el.style.top = nT + "px";
                 if (gameMode === "bet" && !isDefault) {
-                    let additionalBet = Math.min(currentScore, betInput);
-                    scores[userId] -= additionalBet;
-                    p.betAmount += additionalBet;
-                    totalPool += additionalBet;
+                    let addB = Math.min(scores[userId] || 0, betInput);
+                    scores[userId] -= addB; p.betAmount += addB; totalPool += addB;
                     p.el.querySelector('.bet-amount-label').innerText = `${p.betAmount}pt`;
                 }
             }
-            updateStatusDisplay();
-            updateScoreBoard();
+            updateStatusDisplay(); updateScoreBoard();
         }
 
         function endGame(correctAns) {
-            // バグ修正：quizActive ではなく currentQuestionText で判定する
-            if (!currentQuestionText) return; 
-            
-            quizActive = false; // 回答受け付けを完全に終了
-            const questionTextCache = currentQuestionText;
-            currentQuestionText = ""; // 「出題中」状態を解除
-
-            let winners = [];
-            let winnerTotalBet = 0;
-            Object.keys(participants).forEach(id => {
-                if (participants[id].zoneId === correctAns) {
-                    winners.push(id);
-                    winnerTotalBet += participants[id].betAmount;
-                }
+            if (!currentQuestionText) return;
+            quizActive = false; const txt = currentQuestionText; currentQuestionText = "";
+            let winners = [], winB = 0;
+            Object.keys(participants).forEach(id => { if(participants[id].zoneId === correctAns) { winners.push(id); winB += participants[id].betAmount; } });
+            winners.forEach(id => {
+                let amt = (gameMode === "quiz") ? currentQuizPoints : Math.floor((participants[id].betAmount / winB) * totalPool);
+                scores[id] = (scores[id] || 0) + amt; participants[id].el.classList.add('happy-jump');
             });
-
-            if (winners.length > 0) {
-                winners.forEach(id => {
-                    let winAmount = (gameMode === "quiz") ? currentQuizPoints : Math.floor((participants[id].betAmount / winnerTotalBet) * totalPool);
-                    scores[id] = (scores[id] || 0) + winAmount;
-                    participants[id].el.classList.add('happy-jump');
-                });
-            }
-            Object.keys(participants).forEach(id => {
-                if (participants[id].zoneId !== correctAns) participants[id].el.classList.add('sink-down');
-            });
-
-            // 結果表示
-            const modeName = gameMode === "quiz" ? `Quiz` : `Bet`;
-            document.getElementById('question-box').innerHTML = `
-                <div style="font-size:0.7em; color:#aaa;">[${modeName}]</div>
-                <div>Q: ${questionTextCache}</div>
-                <div style="color: #ffee00; margin-top: 5px;">正解 [ ${correctAns} ] ${gameMode === 'bet' ? '配当 ' + totalPool + 'pt' : ''}</div>
-            `;
+            Object.keys(participants).forEach(id => { if(participants[id].zoneId !== correctAns) participants[id].el.classList.add('sink-down'); });
+            updateStatusDisplay(`<div style="color: #ffee00; margin-top: 5px;">正解 [ ${correctAns} ] ${gameMode === 'bet' ? '配当 ' + totalPool + 'pt' : ''}</div>`);
             updateScoreBoard();
         }
 
-        function startCloseTimer(seconds) {
+        function startCloseTimer(sec) {
             if (!quizActive) return;
-            let timeLeft = seconds;
-            if (closeTimerInterval) clearInterval(closeTimerInterval);
+            let tl = sec; if (closeTimerInterval) clearInterval(closeTimerInterval);
             closeTimerInterval = setInterval(() => {
-                timeLeft--;
-                if (timeLeft <= 0) {
-                    clearInterval(closeTimerInterval);
-                    quizActive = false;
-                    updateStatusDisplay(`<div style="color:#ff4444; margin-top:5px;">受付終了！</div>`);
-                } else {
-                    updateStatusDisplay(`<div style="color:#ffaa00; margin-top:5px;">締切まで ${timeLeft}秒</div>`);
-                }
+                tl--; if (tl <= 0) { clearInterval(closeTimerInterval); quizActive = false; updateStatusDisplay(`<div style="color:#ff4444; margin-top:5px;">受付終了！</div>`); }
+                else updateStatusDisplay(`<div style="color:#ffaa00; margin-top:5px;">締切まで ${tl}秒</div>`);
             }, 1000);
         }
 
-        function createCatElement(userName) {
-            const colors = getUserColors(userName);
-            const container = document.createElement('div');
-            container.className = 'cat-container';
-            const betLabel = document.createElement('div');
-            betLabel.className = 'bet-amount-label';
-            container.appendChild(betLabel);
-            const grid = document.createElement('div');
-            grid.className = 'pixel-grid';
+        function createCatElement(u) {
+            const c = getUserColors(u), con = document.createElement('div'); con.className = 'cat-container';
+            const lb = document.createElement('div'); lb.className = 'bet-amount-label'; con.appendChild(lb);
+            const g = document.createElement('div'); g.className = 'pixel-grid';
             for (let i = 0; i < CONFIG.CAT_SHAPE.length; i++) {
-                const px = document.createElement('div'); px.className = 'px';
-                const type = CONFIG.CAT_SHAPE[i];
-                if (type === "1") px.style.backgroundColor = colors.main;
-                else if (type === "2") px.style.backgroundColor = CONFIG.COLORS.EYE;
-                else if (type === "3") px.style.backgroundColor = CONFIG.COLORS.DETAIL;
-                else if (type === "4") px.style.backgroundColor = colors.dark;
-                grid.appendChild(px);
+                const px = document.createElement('div'); px.className = 'px'; const t = CONFIG.CAT_SHAPE[i];
+                if (t === "1") px.style.backgroundColor = c.main; else if (t === "2") px.style.backgroundColor = CONFIG.COLORS.EYE;
+                else if (t === "3") px.style.backgroundColor = CONFIG.COLORS.DETAIL; else if (t === "4") px.style.backgroundColor = c.dark;
+                g.appendChild(px);
             }
-            container.appendChild(grid);
-            const nameTag = document.createElement('div');
-            nameTag.className = 'user-name'; nameTag.innerText = userName;
-            container.appendChild(nameTag);
-            return container;
+            con.appendChild(g); const nt = document.createElement('div'); nt.className = 'user-name'; nt.innerText = u; con.appendChild(nt); return con;
         }
 
         function updateScoreBoard() {
-            const listEl = document.getElementById('score-list');
-            listEl.innerHTML = "";
-            Object.entries(scores).sort((a, b) => b[1] - a[1]).slice(0, 15).forEach(([name, score]) => {
-                const div = document.createElement('div');
-                div.className = 'score-item';
-                div.innerHTML = `<span>${name}</span><span>${score}pt</span>`;
-                listEl.appendChild(div);
+            const l = document.getElementById('score-list'); l.innerHTML = "";
+            Object.entries(scores).sort((a, b) => b[1] - a[1]).slice(0, 15).forEach(([n, s]) => {
+                const d = document.createElement('div'); d.className = 'score-item'; d.innerHTML = `<span>${n}</span><span>${s}pt</span>`; l.appendChild(d);
             });
         }
     </script>

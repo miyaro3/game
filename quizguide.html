@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Game Instruction Help</title>
+    <style>
+        body { margin: 0; background: rgba(0, 0, 0, 0.8); color: white; font-family: 'Arial', 'Meiryo', sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: auto; border: 2px solid #ffee00; border-radius: 15px; padding: 20px; background: rgba(20, 20, 20, 0.9); box-shadow: 0 0 20px rgba(255, 238, 0, 0.3); }
+        h1 { color: #ffee00; text-align: center; border-bottom: 2px solid #ffee00; padding-bottom: 10px; margin-top: 0; }
+        h2 { color: #00ffcc; border-left: 5px solid #00ffcc; padding-left: 10px; font-size: 1.2em; }
+        .command-list { background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .cmd { color: #ff4488; font-weight: bold; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; }
+        .desc { margin-left: 10px; color: #ddd; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .mode-box { border: 1px solid #444; border-radius: 10px; padding: 15px; background: rgba(255,255,255,0.02); }
+        .highlight { color: #ffee00; font-weight: bold; }
+        ul { padding-left: 20px; }
+        li { margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐾 どっち派？ネコゲー ガイド 🐾</h1>
+
+        <div class="grid">
+            <div class="mode-box">
+                <h2>🎮 視聴者の遊び方</h2>
+                <div class="command-list">
+                    <p><span class="cmd">!1</span> 〜 <span class="cmd">!4</span><br><span class="desc">各エリアへ移動します。</span></p>
+                    <p><span class="cmd">!1 [数値]</span><br><span class="desc">移動しつつポイントを賭けます。<br>（例：!1 500）</span></p>
+                </div>
+                <ul>
+                    <li><span class="highlight">クイズモード</span>：ポイント消費なし。正解で一律ボーナス！</li>
+                    <li><span class="highlight">ベットモード</span>：持ちポイントを賭けて勝負。的中者でプール金を山分け！</li>
+                    <li><span class="highlight">自由移動</span>：締め切りまで何度でも移動・追いベットが可能。</li>
+                </ul>
+            </div>
+
+            <div class="mode-box">
+                <h2>🎙️ 配信者・Modコマンド</h2>
+                <div class="command-list">
+                    <p><span class="cmd">!quiz [問題文]</span><br><span class="desc">クイズモードを開始</span></p>
+                    <p><span class="cmd">!bet [問題文]</span><br><span class="desc">ギャンブルモードを開始</span></p>
+                    <p><span class="cmd">!close [秒数]</span><br><span class="desc">回答を締め切るタイマー</span></p>
+                    <p><span class="cmd">!answer [番号]</span><br><span class="desc">正解発表＆ポイント配布</span></p>
+                    <p><span class="cmd">!point [数] [名]</span><br><span class="desc">ポイント付与（名は任意）</span></p>
+                </div>
+                <p style="font-size: 0.85em; color: #aaa;">※ゲーム中に別のゲームを開始すると、賭けていたポイントは自動で全員に返金されます。</p>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 20px; font-size: 0.9em; color: #888;">
+            URL末尾に <span style="color:#00ffcc;">?channel=あなたのID</span> をつけて読み込んでください
+        </div>
+    </div>
+</body>
+</html>
