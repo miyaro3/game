@@ -181,9 +181,9 @@
         const display = document.getElementById('generatedUrl');
         
         if (id) {
-            // ゲーム本体ファイル名を 'index.html' と想定
+            // ゲーム本体ファイル名を 'chat.html' と想定
             const currentPath = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
-            const fullUrl = currentPath + "index.html?channel=" + id;
+            const fullUrl = currentPath + "chat.html?channel=" + id;
             display.innerText = fullUrl;
         } else {
             display.innerText = "IDを入力してください...";
@@ -203,4 +203,5 @@
 </script>
 
 </body>
+
 </html>
