@@ -119,7 +119,10 @@
 
         function endGame(correctAns) {
             if (!currentQuestionText) return;
-            quizActive = false; const txt = currentQuestionText; currentQuestionText = "";
+            quizActive = false; 
+            const txt = currentQuestionText; // 元の問題文を保存
+            currentQuestionText = ""; // 出題状態を解除（二重回答防止）
+
             let winners = [], winB = 0;
             Object.keys(participants).forEach(id => { if(participants[id].zoneId === correctAns) { winners.push(id); winB += participants[id].betAmount; } });
             winners.forEach(id => {
@@ -127,7 +130,15 @@
                 scores[id] = (scores[id] || 0) + amt; participants[id].el.classList.add('happy-jump');
             });
             Object.keys(participants).forEach(id => { if(participants[id].zoneId !== correctAns) participants[id].el.classList.add('sink-down'); });
-            updateStatusDisplay(`<div style="color: #ffee00; margin-top: 5px;">正解 [ ${correctAns} ] ${gameMode === 'bet' ? '配当 ' + totalPool + 'pt' : ''}</div>`);
+            
+            // 保存しておいた txt を使って再描画することで問題文を維持する
+            const modeName = gameMode === "quiz" ? `Quiz (${currentQuizPoints}pt)` : `Bet (Pool: ${totalPool})`;
+            document.getElementById('question-box').innerHTML = `
+                <div style="font-size:0.7em; color:#aaa;">[${modeName}]</div>
+                <div>Q: ${txt}</div>
+                <div style="color: #ffee00; margin-top: 5px;">正解 [ ${correctAns} ] ${gameMode === 'bet' ? '配当 ' + totalPool + 'pt' : ''}</div>
+            `;
+            
             updateScoreBoard();
         }
 
