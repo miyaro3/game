@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Game Instruction Help</title>
+    <title>ミヤロクイズ ガイド</title>
     <style>
         body { margin: 0; background: rgba(0, 0, 0, 0.8); color: white; font-family: 'Arial', 'Meiryo', sans-serif; padding: 20px; }
         .container { max-width: 800px; margin: auto; border: 2px solid #ffee00; border-radius: 15px; padding: 20px; background: rgba(20, 20, 20, 0.9); box-shadow: 0 0 20px rgba(255, 238, 0, 0.3); }
@@ -14,45 +14,100 @@
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .mode-box { border: 1px solid #444; border-radius: 10px; padding: 15px; background: rgba(255,255,255,0.02); }
         .highlight { color: #ffee00; font-weight: bold; }
-        ul { padding-left: 20px; }
-        li { margin-bottom: 8px; }
+        .rule-sub { font-size: 0.9em; color: #ccc; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #555; }
+        ul { padding-left: 18px; margin: 8px 0; }
+        li { margin-bottom: 5px; }
+
+        .generator-box { margin-top: 30px; padding: 20px; background: #1a1a1a; border: 1px solid #444; border-radius: 10px; text-align: center; }
+        .generator-box input { padding: 10px; width: 200px; border-radius: 5px; border: 1px solid #444; background: #333; color: white; font-size: 16px; margin-right: 10px; }
+        .url-display { margin-top: 15px; background: #000; padding: 10px; border-radius: 5px; border: 1px dashed #666; font-family: monospace; word-break: break-all; min-height: 20px; display: block; }
+        .copy-btn { margin-top: 10px; padding: 8px 20px; background: #00ffcc; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .copy-btn:hover { background: #00ccaa; }
+        .copy-btn:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🐾 ミヤロクイズ 🐾</h1>
+        <h1>🐾 ミヤロクイズ ガイド 🐾</h1>
 
         <div class="grid">
             <div class="mode-box">
                 <h2>🎮 視聴者の遊び方</h2>
+                
                 <div class="command-list">
-                    <p><span class="cmd">!1</span> 〜 <span class="cmd">!4</span><br><span class="desc">各エリアへ移動します。</span></p>
-                    <p><span class="cmd">!1 [数値]</span><br><span class="desc">移動しつつポイントを賭けます。<br>（例：!1 500）</span></p>
+                    <p><span class="highlight">【クイズモード】</span><br>
+                        <span class="cmd">!1</span> 〜 <span class="cmd">!4</span><br>
+                        <span class="desc">回答エリアへ移動（ポイント消費なし）</span>
+                    </p>
                 </div>
-                <ul>
-                    <li><span class="highlight">クイズモード</span>：ポイント消費なし。正解で一律ボーナス！</li>
-                    <li><span class="highlight">ベットモード</span>：持ちポイントを賭けて勝負。的中者でプール金を山分け！</li>
-                    <li><span class="highlight">自由移動</span>：締め切りまで何度でも移動・追いベットが可能。</li>
-                </ul>
+
+                <div class="command-list">
+                    <p><span class="highlight">【ギャンブルモード】</span><br>
+                        <span class="cmd">!1</span> 〜 <span class="cmd">!4</span> <span class="cmd">[数値]</span><br>
+                        <span class="desc">移動しつつポイントを賭けます（例: !1 500）</span>
+                    </p>
+                    <div class="rule-sub">
+                        <ul>
+                            <li>移動すると賭け金も一緒に移動します。</li>
+                            <li>数値を打つたびに、追加ベット（積み増し）が可能！</li>
+                            <li>的中者でプール金を山分け！総取りのチャンス！</li>
+                        </ul>
+                    </div>
+                </div>
             </div>
 
             <div class="mode-box">
                 <h2>🎙️ 配信者・Modコマンド</h2>
                 <div class="command-list">
-                    <p><span class="cmd">!quiz [問題文]</span><br><span class="desc">クイズモードを開始</span></p>
-                    <p><span class="cmd">!bet [問題文]</span><br><span class="desc">ギャンブルモードを開始</span></p>
+                    <p><span class="cmd">!quiz [問題文]</span><br><span class="desc">クイズモードを開始（必須）</span></p>
+                    <p><span class="cmd">!bet [問題文]</span><br><span class="desc">ギャンブルモードを開始（必須）</span></p>
                     <p><span class="cmd">!close [秒数]</span><br><span class="desc">回答を締め切るタイマー</span></p>
                     <p><span class="cmd">!answer [番号]</span><br><span class="desc">正解発表＆ポイント配布</span></p>
-                    <p><span class="cmd">!point [数] [名]</span><br><span class="desc">ポイント付与（名は任意）</span></p>
                 </div>
                 <p style="font-size: 0.85em; color: #aaa;">※ゲーム中に別のゲームを開始すると、賭けていたポイントは自動で全員に返金されます。</p>
             </div>
         </div>
 
-        <div style="text-align: center; margin-top: 20px; font-size: 0.9em; color: #888;">
-            URL末尾に <span style="color:#00ffcc;">?channel=あなたのID</span> をつけて読み込んでください
+        <div class="generator-box">
+            <h2>🔗 配信用URL生成</h2>
+            <p style="font-size: 0.9em; color: #ccc;">TwitchのチャンネルIDを入力してください</p>
+            <input type="text" id="twitchId" placeholder="Twitch IDを入力" oninput="generateUrl()">
+            <div class="url-display" id="generatedUrl">IDを入力してください...</div>
+            <button class="copy-btn" onclick="copyUrl()">URLをコピー</button>
         </div>
     </div>
-</body>
 
+    <script>
+        function generateUrl() {
+            const twitchId = document.getElementById('twitchId').value.trim();
+            const display = document.getElementById('generatedUrl');
+            
+            if (twitchId === "") {
+                display.innerText = "IDを入力してください...";
+                return;
+            }
+            
+            const currentPath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+            const finalUrl = `${currentPath}/quiz.html?channel=${twitchId}`;
+            
+            display.innerText = finalUrl;
+        }
+
+        function copyUrl() {
+            const urlText = document.getElementById('generatedUrl').innerText;
+            if (urlText.includes("...")) return;
+
+            navigator.clipboard.writeText(urlText).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.innerText;
+                btn.innerText = "コピーしました！";
+                btn.style.background = "#ffee00";
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.style.background = "#00ffcc";
+                }, 2000);
+            });
+        }
+    </script>
+</body>
 </html>
