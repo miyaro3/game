@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miyaro Park - 遊び方ガイド</title>
+    <style>
+        :root {
+            --primary-bg: #1a1a1a;
+            --card-bg: #2d2d2d;
+            --accent-color: #ffee00;
+            --text-color: #ffffff;
+            --command-color: #ffb7c5;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: var(--primary-bg);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            padding: 40px 0;
+            border-bottom: 2px solid var(--accent-color);
+        }
+        h1 { margin: 0; color: var(--accent-color); font-size: 2rem; }
+        .intro { text-align: center; margin: 20px 0; font-size: 1.1rem; }
+
+        section { margin-top: 40px; }
+        h2 { border-left: 5px solid var(--accent-color); padding-left: 15px; font-size: 1.5rem; }
+
+        .command-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .cmd {
+            display: inline-block;
+            background: #000;
+            color: var(--command-color);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 1.1rem;
+        }
+        .desc { margin-top: 8px; font-size: 0.95rem; color: #ccc; }
+
+        .note {
+            background: rgba(255, 238, 0, 0.1);
+            border: 1px dashed var(--accent-color);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+        .emoji { font-size: 1.4rem; vertical-align: middle; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🐾 Miyaro Park 遊び方ガイド</h1>
+        <p class="intro">チャットでコマンドを打つと、画面上のあなたのキャラが動くよ！</p>
+    </header>
+
+    <section>
+        <h2>基本のあそびかた</h2>
+        <p>配信中にチャットを打つだけで、あなたの分身（アバター）が画面に出現します。あとはコマンドを送信して、他のリスナーと遊んだり、イタズラしたりしてみよう！</p>
+    </section>
+
+    <section>
+        <h2>移動コマンド</h2>
+        <div class="command-grid">
+            <div class="card">
+                <span class="cmd">!up</span> / <span class="cmd">!down</span>
+                <p class="desc">上下に勢いよく飛び出します。邪魔なキャラをはじき飛ばせるぞ！</p>
+            </div>
+            <div class="card">
+                <span class="cmd">!left</span> / <span class="cmd">!right</span>
+                <p class="desc">左右にダッシュ！進路にいるキャラはなぎ倒されます。</p>
+            </div>
+            <div class="card">
+                <span class="cmd">!fall</span>
+                <p class="desc">全員が重力で一斉に地面に落下します。</p>
+            </div>
+            <div class="card">
+                <span class="cmd">!set</span>
+                <p class="desc">全員が画面下にきれいに整列します（5秒で解除）。</p>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <h2>アクション・攻撃</h2>
+        <div class="command-grid">
+            <div class="card">
+                <span class="cmd">!fire</span>
+                <p class="desc">360度ランダムな方向に🔥を発射！当たったキャラを吹き飛ばす。</p>
+            </div>
+            <div class="card">
+                <span class="cmd">!fire [名前]</span>
+                <p class="desc">特定の相手を狙い撃ちして🔥を飛ばします。</p>
+            </div>
+            <div class="card">
+                <span class="cmd">!battle [名前]</span>
+                <p class="desc">指定した相手に突撃！勝てば飛ばし、負ければ自分が飛びます。</p>
+            </div>
+            <div class="card">
+                <span class="cmd">!bomb</span>
+                <p class="desc">自分が大爆発して退場！周囲のキャラを巻き込んで吹き飛ばします。</p>
+            </div>
+            <div class="card">
+                <span class="cmd">!shake</span> / <span class="cmd">!dance</span>
+                <p class="desc">その場でプルプル震えたり、ダンスしてアピール！</p>
+            </div>
+            <div class="card">
+                <span class="cmd">!clean</span>
+                <p class="desc">画面左から巨大な掃除棒が登場！全員を右端へ「雪かき」します。</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="note">
+        <strong>💡 ヒント:</strong> キャラクターは放っておくと自由にお散歩します。チャットを打つと頭上に吹き出しが出るので、みんなで会話を楽しもう！
+    </div>
+
+    <footer>
+        &copy; 2026 Miyaro Park Interactive System
+    </footer>
+</div>
+
+</body>
+</html>
