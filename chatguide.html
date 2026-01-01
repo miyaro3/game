@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Animal Park - 遊び方ガイド & 設定</title>
+    <title>Animal Park - 遊び方ガイド & OBS設定</title>
     <style>
         :root {
             --primary-bg: #1a1a1a;
@@ -12,6 +12,7 @@
             --text-color: #ffffff;
             --command-color: #ffb7c5;
             --twitch-purple: #9146ff;
+            --obs-blue: #00aaff;
         }
         body {
             font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
@@ -59,15 +60,25 @@
         }
         .desc { margin-top: 8px; font-size: 0.95rem; color: #ccc; }
 
-        /* 設定セクションのスタイル */
+        /* OBS設定エリア */
         .setup-section {
             background: #252525;
             padding: 30px;
             border-radius: 15px;
-            border: 2px solid var(--twitch-purple);
+            border: 2px solid var(--obs-blue);
             margin-top: 60px;
         }
-        .setup-section h2 { border-left-color: var(--twitch-purple); }
+        .setup-section h2 { border-left-color: var(--obs-blue); color: var(--obs-blue); }
+        
+        .obs-spec {
+            background: rgba(0, 170, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        .obs-spec ul { margin: 5px 0; padding-left: 20px; }
+
         .input-group { margin-bottom: 20px; }
         label { display: block; margin-bottom: 10px; font-weight: bold; }
         input[type="text"] {
@@ -90,19 +101,21 @@
             margin-bottom: 15px;
             word-break: break-all;
             min-height: 20px;
+            border: 1px solid #444;
         }
         .btn-copy {
             width: 100%;
             padding: 15px;
-            background-color: var(--twitch-purple);
+            background-color: var(--obs-blue);
             color: white;
             border: none;
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
             font-size: 1rem;
+            transition: 0.2s;
         }
-        .btn-copy:hover { background-color: #772ce8; }
+        .btn-copy:hover { background-color: #0088cc; }
         .copy-msg {
             text-align: center;
             color: #44ff44;
@@ -132,42 +145,54 @@
 <div class="container">
     <header>
         <h1>🐾 Animal Park 遊び方ガイド</h1>
-        <p class="intro">チャットでコマンドを打つと、画面上のあなたのキャラが動くよ！</p>
+        <p class="intro">チャットであなたの分身を動かして遊ぼう！</p>
     </header>
 
     <section>
-        <h2>基本のあそびかた</h2>
-        <p>配信中にチャットを打つだけで、あなたの分身（アバター）が画面に出現します。あとはコマンドを送信して、他のリスナーと遊んでみよう！</p>
+        <h2>基本ルール</h2>
+        <p>チャットを打つと画面にアバターが出現します。放置すると自由に散歩しますが、以下のコマンドでアクションを起こせます！</p>
     </section>
 
     <section>
         <h2>コマンド一覧</h2>
         <div class="command-grid">
-            <div class="card"><span class="cmd">!up / down / left / right</span><p class="desc">その方向へダッシュ！キャラをはじき飛ばします。</p></div>
-            <div class="card"><span class="cmd">!fall</span><p class="desc">全員が重力で一斉に地面に落下します。</p></div>
-            <div class="card"><span class="cmd">!set</span><p class="desc">全員が画面下にきれいに整列します（5秒で解除）。</p></div>
-            <div class="card"><span class="cmd">!fire [名前]</span><p class="desc">狙い撃ちで🔥を発射！指定なしだとランダム方向に飛ばします。</p></div>
-            <div class="card"><span class="cmd">!battle [名前]</span><p class="desc">相手に突撃！はじき飛ばすか飛ばされるかの真剣勝負。</p></div>
-            <div class="card"><span class="cmd">!bomb</span><p class="desc">自分が大爆発！周囲のキャラを巻き込んで吹き飛ばします。</p></div>
-            <div class="card"><span class="cmd">!clean</span><p class="desc">巨大な棒が登場し、全員を右端へ「雪かき」します。</p></div>
-            <div class="card"><span class="cmd">!shake / dance</span><p class="desc">その場で震えたり踊ったりしてアピール！</p></div>
+            <div class="card"><span class="cmd">!up / down / left / right</span><p class="desc">猛ダッシュ！進路にいるキャラを物理的にはじき飛ばします。</p></div>
+            <div class="card"><span class="cmd">!fall</span><p class="desc">全員が地面に一斉落下します。</p></div>
+            <div class="card"><span class="cmd">!set</span><p class="desc">画面下に一列に整列します（5秒で自動解除）。</p></div>
+            <div class="card"><span class="cmd">!fire [ID]</span><p class="desc">狙い撃ちで🔥を発射！IDなしだとランダムな方向に飛ばします。</p></div>
+            <div class="card"><span class="cmd">!battle [ID]</span><p class="desc">指定相手に突撃！「飛ばす」か「飛ばされる」かランダム勝負。</p></div>
+            <div class="card"><span class="cmd">!bomb</span><p class="desc">大爆発！周囲のキャラを巻き添えにして退場します。</p></div>
+            <div class="card"><span class="cmd">!clean</span><p class="desc">巨大なバーが登場し、全員を右端へ掃き出します。</p></div>
+            <div class="card"><span class="cmd">!shake / dance</span><p class="desc">喜びを表現！震えたり踊ったりします。</p></div>
         </div>
     </section>
 
     <div class="note">
-        <strong>💡 ヒント:</strong> キャラクターは放っておくと自由にお散歩します。チャットを打つと頭上に吹き出しが出るよ！
+        <strong>💡 ヒント:</strong> チャットメッセージはキャラクターの頭上に吹き出しとして表示されます。
     </div>
 
     <section class="setup-section">
-        <h2>配信者用ツール（OBS設定）</h2>
+        <h2>配信者用 OBSブラウザソース設定</h2>
+        
+        <div class="obs-spec">
+            <strong>【推奨設定】</strong>
+            <ul>
+                <li>幅: <strong>852</strong></li>
+                <li>高さ: <strong>480</strong></li>
+                <li>「表示されていないときにソースを閉じる」を<strong>オフ</strong>にする</li>
+            </ul>
+        </div>
+
         <div class="input-group">
-            <label for="twitchId">Twitch チャンネル名を入力</label>
+            <label for="twitchId">1. Twitch チャンネル名を入力</label>
             <input type="text" id="twitchId" placeholder="your_channel_name" oninput="generateUrl()">
         </div>
-        <label>OBSブラウザソース用URL</label>
+
+        <label>2. 生成されたURL</label>
         <div class="url-display" id="generatedUrl">IDを入力してください...</div>
-        <button class="btn-copy" onclick="copyToClipboard()">URLをコピーする</button>
-        <div class="copy-msg" id="copyMsg">コピーしました！OBSに貼り付けてください。</div>
+
+        <button class="btn-copy" onclick="copyToClipboard()">URLをコピーしてOBSに貼る</button>
+        <div class="copy-msg" id="copyMsg">コピーしました！OBSのブラウザソース「URL」欄に貼り付けてください。</div>
     </section>
 
     <footer>
@@ -181,7 +206,7 @@
         const display = document.getElementById('generatedUrl');
         
         if (id) {
-            // ゲーム本体ファイル名を 'chat.html' と想定
+            // 本体のファイル名を chat.html に指定
             const currentPath = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
             const fullUrl = currentPath + "chat.html?channel=" + id;
             display.innerText = fullUrl;
@@ -203,5 +228,4 @@
 </script>
 
 </body>
-
 </html>
