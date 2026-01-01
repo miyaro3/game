@@ -82,12 +82,26 @@
 
         function startNewGame(text) {
             if (closeTimerInterval) clearInterval(closeTimerInterval);
-            Object.keys(participants).forEach(id => { 
-                if (participants[id].betAmount > 0) scores[id] = (scores[id] || 0) + participants[id].betAmount;
-                participants[id].el.remove();
+            
+            // 修正箇所：quizActive（出題中）だった場合のみ、賭け金を返金する
+            if (quizActive) {
+                Object.keys(participants).forEach(id => { 
+                    if (participants[id].betAmount > 0) {
+                        scores[id] = (scores[id] || 0) + participants[id].betAmount;
+                    }
+                });
+            }
+
+            // 前回のゲームの猫を画面から消去
+            Object.keys(participants).forEach(id => {
+                if (participants[id].el) participants[id].el.remove();
             });
-            participants = {}; quizActive = true; currentQuestionText = text;
-            updateStatusDisplay(); updateScoreBoard();
+
+            participants = {}; 
+            quizActive = true; 
+            currentQuestionText = text;
+            updateStatusDisplay(); 
+            updateScoreBoard();
         }
 
         function updateStatusDisplay(footerHtml = "") {
@@ -120,8 +134,8 @@
         function endGame(correctAns) {
             if (!currentQuestionText) return;
             quizActive = false; 
-            const txt = currentQuestionText; // 元の問題文を保存
-            currentQuestionText = ""; // 出題状態を解除（二重回答防止）
+            const txt = currentQuestionText; 
+            currentQuestionText = ""; 
 
             let winners = [], winB = 0;
             Object.keys(participants).forEach(id => { if(participants[id].zoneId === correctAns) { winners.push(id); winB += participants[id].betAmount; } });
@@ -131,7 +145,6 @@
             });
             Object.keys(participants).forEach(id => { if(participants[id].zoneId !== correctAns) participants[id].el.classList.add('sink-down'); });
             
-            // 保存しておいた txt を使って再描画することで問題文を維持する
             const modeName = gameMode === "quiz" ? `Quiz (${currentQuizPoints}pt)` : `Bet (Pool: ${totalPool})`;
             document.getElementById('question-box').innerHTML = `
                 <div style="font-size:0.7em; color:#aaa;">[${modeName}]</div>
