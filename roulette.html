@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Retro Pixel Roulette - Auto Loop</title>
+    <style>
+        :root { --gold: #ffcc00; --border: #444; }
+        body { margin: 0; overflow: hidden; background: transparent; font-family: 'Meiryo', sans-serif; color: white; }
+        #stage { width: 852px; height: 480px; display: flex; background: transparent; border: 2px solid var(--border); box-sizing: border-box; }
+        
+        #sidebar { width: 180px; display: flex; flex-direction: column; background: rgba(0,0,0,0.9); border-right: 2px solid var(--border); z-index: 100; }
+        #score-area { flex-grow: 1; padding: 10px; overflow: hidden; }
+        #status-log { height: 140px; background: #000; border-top: 2px solid var(--border); padding: 8px; font-size: 11px; color: var(--gold); overflow-y: auto; line-height: 1.4; }
+        .score-item { font-size: 11px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; padding: 2px 0; }
+
+        #main-area { flex-grow: 1; display: flex; flex-direction: column; position: relative; background: transparent; overflow: hidden; }
+        #roulette-outer { height: 380px; position: relative; background: transparent; }
+        
+        .slot {
+            position: absolute; border: 1px solid #333;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;
+            color: #777; background: rgba(15,15,15,0.95); box-sizing: border-box;
+        }
+        .slot.active { background: var(--gold) !important; color: #000 !important; box-shadow: 0 0 15px var(--gold); border-color: #fff; z-index: 50; }
+
+        #bet-area { height: 100px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 5px; background: rgba(10,10,10,0.95); border-top: 2px solid var(--border); box-sizing: border-box; }
+        .bet-column { display: flex; flex-direction: column-reverse; position: relative; border: 1px solid #333; background: #000; }
+        .bet-slot-bg { height: 22px; border-top: 1px solid #222; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; color: #444; }
+        
+        .win-flash { animation: flash-anim 0.5s step-end 20; }
+        .win-stay { background: var(--gold) !important; color: #000 !important; }
+        @keyframes flash-anim { 0%, 100% { background: var(--gold); color: #000; } 50% { background: #000; color: var(--gold); } }
+
+        .name-container { position: absolute; inset: 0; pointer-events: none; }
+        .user-stack { position: absolute; bottom: 0; width: 20%; display: flex; flex-direction: column-reverse; align-items: center; transition: left 0.3s; }
+        .user-chip {
+            width: 90%; height: 16px; margin-bottom: 1px;
+            background: var(--u-color, #444); color: white; font-size: 10px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            border: 1px solid rgba(255,255,255,0.4); border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="stage">
+        <div id="sidebar">
+            <div id="score-area"><div id="score-list"></div></div>
+            <div id="status-log">!start で開始</div>
+        </div>
+        <div id="main-area">
+            <div id="roulette-outer"></div>
+            <div id="bet-area">
+                <div class="bet-column" id="col-2"><div class="name-container"></div></div>
+                <div class="bet-column" id="col-4"><div class="name-container"></div></div>
+                <div class="bet-column" id="col-6"><div class="name-container"></div></div>
+                <div class="bet-column" id="col-8"><div class="name-container"></div></div>
+                <div class="bet-column" id="col-10"><div class="name-container"></div></div>
+                <div class="bet-column" id="col-30"><div class="name-container"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
+    <script>
+        const MULTIS = [2, 4, 6, 8, 10, 30];
+        // 30を1つ10に変更済み
+        const FIXED_LAYOUT = [
+            0, 2, 4, 2, 6, 2, 8, 2, 10, 2, 4, 2, 6, 2, 30,
+            2, 4, 2, 8, 2, 10, 2, 6,
+            2, 4, 2, 6, 2, 8, 2, 4, 2, 10, 2, 10, 2, 4, 2,
+            6, 2, 8, 2, 4, 2
+        ];
+
+        let scores = {}, currentBets = {}, userColors = {}, isBetting = false, isSpinning = false;
+        let betTimer = null, timeLeft = 0, isAutoMode = false;
+
+        function initWheel() {
+            const outer = document.getElementById('roulette-outer');
+            const slotW = 672 / 15; const slotH = 380 / 9;
+            outer.innerHTML = "";
+            for (let i = 0; i < 44; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot'; slot.id = `slot-${i}`; slot.innerText = FIXED_LAYOUT[i];
+                slot.style.width = slotW + "px"; slot.style.height = slotH + "px";
+                let pos = (i + 7) % 44; let x, y;
+                if (pos < 15) { x = pos * slotW; y = 0; }
+                else if (pos < 22) { x = 14 * slotW; y = (pos - 14) * slotH; }
+                else if (pos < 37) { x = (14 - (pos - 22)) * slotW; y = 8 * slotH; }
+                else { x = 0; y = (8 - (pos - 36)) * slotH; }
+                slot.style.left = x + "px"; slot.style.top = y + "px";
+                outer.appendChild(slot);
+            }
+        }
+        initWheel();
+
+        MULTIS.forEach(m => {
+            const col = document.getElementById(`col-${m}`);
+            for(let i=0; i<4; i++) {
+                const s = document.createElement('div');
+                s.className = 'bet-slot-bg'; if(i === 0) s.innerText = "!" + m; // コマンド表記に変更
+                col.appendChild(s);
+            }
+        });
+
+        ComfyJS.onCommand = (user, command, message, flags) => {
+            const u = user.toLowerCase();
+            if (!scores[u]) scores[u] = 100;
+            if (!userColors[u]) userColors[u] = `hsl(${Math.random()*360}, 65%, 45%)`;
+
+            if (flags.broadcaster || flags.mod) {
+                if (command === "start") {
+                    if (isBetting) timeLeft = 0; 
+                    else if (!isSpinning) openBets();
+                    return;
+                }
+                if (command === "autostart") { isAutoMode = true; if(!isBetting && !isSpinning) openBets(); return; }
+                if (command === "autostop") { isAutoMode = false; log("オートモード停止予定"); return; }
+            }
+
+            const m = parseInt(command);
+            if (isBetting && MULTIS.includes(m)) {
+                if (!currentBets[u]) currentBets[u] = { 2:0, 4:0, 6:0, 8:0, 10:0, 30:0 };
+                if (currentBets[u][m] < 4 && scores[u] > 0) {
+                    currentBets[u][m]++; scores[u]--;
+                    updateScoreBoard();
+                    addChip(u, m);
+                }
+            }
+        };
+
+        function addChip(user, multi) {
+            const container = document.getElementById(`col-${multi}`).querySelector('.name-container');
+            const stackId = `stack-${user}-${multi}`;
+            let stack = document.getElementById(stackId);
+            if (!stack) {
+                stack = document.createElement('div'); stack.id = stackId; stack.className = 'user-stack';
+                stack.style.setProperty('--u-color', userColors[user]);
+                const existing = container.querySelectorAll('.user-stack').length;
+                const pIdx = existing % 10; const cycle = Math.floor(existing / 10);
+                let lPos = (pIdx % 5) * 20; if (pIdx >= 5) lPos += 10;
+                stack.style.left = lPos + "%"; stack.style.zIndex = existing + (cycle * 10);
+                container.appendChild(stack);
+            }
+            const chip = document.createElement('div');
+            chip.className = 'user-chip'; chip.innerText = user.charAt(0).toUpperCase();
+            stack.appendChild(chip);
+        }
+
+        function openBets() {
+            isBetting = true; currentBets = {};
+            document.querySelectorAll('.name-container').forEach(c => c.innerHTML = '');
+            document.querySelectorAll('.bet-slot-bg').forEach(s => s.classList.remove('win-flash', 'win-stay'));
+            document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+            timeLeft = 60;
+            if(betTimer) clearInterval(betTimer);
+            betTimer = setInterval(() => {
+                if (timeLeft <= 0) { clearInterval(betTimer); isBetting = false; spin(); }
+                else { log(`BET受付中: ${timeLeft}s<br>!startで即開始`); timeLeft--; }
+            }, 1000);
+        }
+
+        function spin() {
+            isSpinning = true;
+            let idx = 0, speed = 30, rounds = 0;
+            const stopIdx = Math.floor(Math.random() * 44);
+            log("抽選中...");
+            function run() {
+                document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+                const target = document.getElementById(`slot-${idx}`);
+                if(target) target.classList.add('active');
+                if (rounds > 3 && idx === stopIdx) { handleWin(FIXED_LAYOUT[stopIdx], stopIdx); }
+                else { idx = (idx + 1) % 44; if (idx === 0) rounds++; if (rounds > 2) speed += 10; setTimeout(run, speed); }
+            }
+            run();
+        }
+
+        function handleWin(val, finalIdx) {
+            document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+            document.getElementById(`slot-${finalIdx}`).classList.add('active');
+            log(`当たり: ${val}<br>---的中者---<br>`);
+            if (val > 0) {
+                const slots = document.getElementById(`col-${val}`).querySelectorAll('.bet-slot-bg');
+                slots.forEach(s => s.classList.add('win-flash'));
+                setTimeout(() => { 
+                    slots.forEach(s => { s.classList.remove('win-flash'); s.classList.add('win-stay'); }); 
+                    // オートプレイ継続判定
+                    if(isAutoMode) setTimeout(openBets, 2000);
+                }, 10000);
+            } else {
+                if(isAutoMode) setTimeout(openBets, 5000);
+            }
+            Object.keys(currentBets).forEach(u => {
+                const b = currentBets[u][val] || 0;
+                if (b > 0) { const prize = b * val; scores[u] += prize; document.getElementById('status-log').innerHTML += `${u}: +${prize}<br>`; }
+            });
+            isSpinning = false; updateScoreBoard();
+        }
+
+        function log(msg) { document.getElementById('status-log').innerHTML = msg; }
+        function updateScoreBoard() {
+            const l = document.getElementById('score-list');
+            l.innerHTML = '<div style="color:var(--gold);text-align:center;font-weight:bold;margin-bottom:5px;font-size:12px;">RANKING</div>';
+            Object.entries(scores).sort((a,b)=>b[1]-a[1]).slice(0,18).forEach(([n,s]) => {
+                const d = document.createElement('div'); d.className = 'score-item';
+                d.innerHTML = `<span>${n}</span><span>${s}</span>`; l.appendChild(d);
+            });
+        }
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('channel')) ComfyJS.Init(params.get('channel'));
+        updateScoreBoard();
+    </script>
+</body>
+</html>
