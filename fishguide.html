@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Miyaro fish ガイド</title>
+    <style>
+        /* デザインベース: ミヤロクイズ ガイドを継承 */
+        body { margin: 0; background: rgba(0, 0, 0, 0.8); color: white; font-family: 'Arial', 'Meiryo', sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: auto; border: 2px solid #00ffcc; border-radius: 15px; padding: 20px; background: rgba(20, 20, 20, 0.9); box-shadow: 0 0 20px rgba(0, 255, 204, 0.3); }
+        h1 { color: #00ffcc; text-align: center; border-bottom: 2px solid #00ffcc; padding-bottom: 10px; margin-top: 0; }
+        h2 { color: #ffee00; border-left: 5px solid #ffee00; padding-left: 10px; font-size: 1.2em; }
+        .command-list { background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .cmd { color: #ff4488; font-weight: bold; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; }
+        .desc { margin-left: 10px; color: #ddd; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .mode-box { border: 1px solid #444; border-radius: 10px; padding: 15px; background: rgba(255,255,255,0.02); }
+        .highlight { color: #00ffcc; font-weight: bold; }
+        ul { padding-left: 18px; margin: 8px 0; }
+        li { margin-bottom: 5px; color: #ccc; font-size: 0.9em; }
+
+        /* URL生成・コピーセクション */
+        .generator-box { margin-top: 30px; padding: 20px; background: #1a1a1a; border: 1px solid #444; border-radius: 10px; text-align: center; }
+        .generator-box input { padding: 10px; width: 250px; border-radius: 5px; border: 1px solid #444; background: #333; color: white; font-size: 16px; margin-right: 10px; }
+        .url-display { margin-top: 15px; background: #000; padding: 12px; border-radius: 5px; border: 1px dashed #666; font-family: monospace; word-break: break-all; min-height: 20px; display: block; color: #00ffcc; }
+        .copy-btn { margin-top: 15px; padding: 10px 30px; background: #ffee00; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 1em; }
+        .copy-btn:hover { background: #ffcc00; transform: translateY(-2px); }
+        .copy-btn:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎣 Miyaro fish ガイド 🎣</h1>
+
+        <div class="grid">
+            <div class="mode-box">
+                <h2>🎮 視聴者の遊び方</h2>
+                <div class="command-list">
+                    <p><span class="highlight">【釣り開始】</span><br>
+                        <span class="cmd">!fish</span><br>
+                        <span class="desc">釣り糸を垂らして魚を狙います。</span>
+                    </p>
+                </div>
+                <div class="command-list">
+                    <p><span class="highlight">【スコア確認】</span><br>
+                        <span class="cmd">!score</span><br>
+                        <span class="desc">現在のランキング（TOP 10）を表示します。</span>
+                    </p>
+                </div>
+                <p style="font-size: 0.85em; color: #aaa;">※ 魚が釣り上がると、リザルト画面が表示されます。</p>
+            </div>
+
+            <div class="mode-box">
+                <h2>🎙️ 配信者・設定ガイド</h2>
+                <div class="command-list">
+                    <p><span class="highlight">【OBS設定手順】</span></p>
+                    <ul>
+                        <li>下部で生成したURLをコピーします。</li>
+                        <li>OBSのソースに「ブラウザ」を追加します。</li>
+                        <li>幅：<span class="highlight">896</span> / 高さ：<span class="highlight">504</span> に設定。</li>
+                        <li>URL欄にコピーしたアドレスを貼り付けます。</li>
+                    </ul>
+                </div>
+                <div class="rule-sub" style="font-size: 0.8em; color: #aaa; border-top: 1px dashed #555; padding-top: 10px;">
+                    <p>※ 画面サイズを 1920x1080 にしたい場合は、OBS上でソースを右クリックし「変換」→「画面に合わせる」を選択してください。</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="generator-box">
+            <h2>🔗 配信用URL生成</h2>
+            <p style="font-size: 0.9em; color: #ccc; margin-bottom: 15px;">TwitchのチャンネルIDを入力してください</p>
+            <input type="text" id="twitchId" placeholder="Twitch IDを入力" oninput="generateUrl()">
+            <div class="url-display" id="generatedUrl">IDを入力してください...</div>
+            <button class="copy-btn" onclick="copyUrl()">URLをコピー</button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * チャンネルIDに基づいてURLを生成
+         */
+        function generateUrl() {
+            const twitchId = document.getElementById('twitchId').value.trim();
+            const display = document.getElementById('generatedUrl');
+            
+            if (twitchId === "") {
+                display.innerText = "IDを入力してください...";
+                return;
+            }
+            
+            // ファイルの場所から index.html へのパスを作成
+            const currentPath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+            const finalUrl = `${currentPath}/index.html?channel=${twitchId}`;
+            
+            display.innerText = finalUrl;
+        }
+
+        /**
+         * 生成されたURLをクリップボードにコピー
+         */
+        function copyUrl() {
+            const urlText = document.getElementById('generatedUrl').innerText;
+            if (urlText.includes("...")) return;
+
+            navigator.clipboard.writeText(urlText).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.innerText;
+                
+                // コピー成功時の演出
+                btn.innerText = "コピーしました！";
+                btn.style.background = "#00ffcc";
+                
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.style.background = "#ffee00";
+                }, 2000);
+            }).catch(err => {
+                console.error('コピー失敗:', err);
+                alert('コピーに失敗しました。URLを直接選択してコピーしてください。');
+            });
+        }
+    </script>
+</body>
+</html>
