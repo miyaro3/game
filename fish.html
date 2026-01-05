@@ -2,13 +2,12 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Fishing Game - Layered Result</title>
+    <title>Twitch Fishing Game - Auto Font Size</title>
     <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: transparent; font-family: 'Helvetica Neue', Arial, sans-serif; }
         #game-container { position: relative; width: 100vw; height: 100vh; }
         
-        /* 1. 背景パネル (一番下) */
         #result-bg {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             min-width: 500px; height: 450px;
@@ -19,34 +18,36 @@
             transition: transform 0.8s cubic-bezier(0.6, -0.28, 0.735, 0.045);
         }
 
-        /* 2. 魚を描くCanvas (真ん中) */
         #canvas {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
             image-rendering: pixelated;
-            z-index: 20; /* パネルより上でテキストより下 */
+            z-index: 20; 
             pointer-events: none;
         }
 
-        /* 3. テキスト (一番上) */
         #result-text-overlay {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            min-width: 500px; height: 450px;
+            width: 500px; height: 450px;
             display: none;
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
             padding: 50px 0;
-            z-index: 30; /* 魚より上 */
+            z-index: 30;
             color: white;
             text-align: center;
             pointer-events: none;
+            box-sizing: border-box;
         }
 
-        .res-text { text-shadow: 2px 2px 4px #000; }
+        .res-text { text-shadow: 2px 2px 4px #000; width: 90%; word-wrap: break-word; }
         #res-user { font-size: 1.8rem; color: #aaa; margin-top: 10px; }
         #res-rarity { font-size: 1.5rem; }
-        #res-fish-name { font-size: 4rem; font-weight: bold; }
+        
+        /* 魚の名前のデフォルトサイズ（ここをJSで上書きします） */
+        #res-fish-name { font-size: 4rem; font-weight: bold; line-height: 1.2; }
+        
         #res-size { font-size: 2rem; margin-bottom: 10px; }
 
         /* レア度別ボーダー */
@@ -73,8 +74,8 @@
     <canvas id="canvas"></canvas>
     <div id="result-text-overlay">
         <div id="res-user" class="res-text"></div>
-        <div></div>
-        <div style="display: flex; flex-direction: column; gap: 5px;">
+        <div style="height: 120px;"></div>
+        <div style="display: flex; flex-direction: column; gap: 5px; width: 100%;">
             <div id="res-rarity" class="res-text"></div>
             <div id="res-fish-name" class="res-text"></div>
             <div id="res-size" class="res-text"></div>
@@ -153,7 +154,6 @@
         const bg = document.getElementById('result-bg');
         const overlay = document.getElementById('result-text-overlay');
         
-        // リセット
         bg.style.display = 'none';
         bg.style.transform = 'translate(-50%, -50%)';
         overlay.style.display = 'none';
@@ -162,7 +162,6 @@
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             animFrame++;
-
             const p1 = 50, p2 = 130, p3 = 180;
             const fishBaseSize = 40 * (currentFish.base_size_cm / 50 + 0.5);
 
@@ -176,7 +175,6 @@
                 } else {
                     animPhase = "result";
                     showResultUI(username, currentFish, finalSize);
-                    // 魚を消し始めるタイマー (5秒後)
                     setTimeout(() => { animPhase = "exit_fish"; }, 5000);
                 }
 
@@ -197,15 +195,13 @@
                 requestAnimationFrame(loop);
 
             } else if (animPhase === "exit_fish") {
-                // 魚だけ先に引き上げる
                 currentHookY -= 25;
                 const dSize = fishBaseSize * 2.5;
                 drawProceduralObject(ctx, canvas.width/2 - dSize/2, currentHookY - dSize/2, dSize, currentHue, currentFish.id, currentFish.category);
                 
-                // 魚が画面外に出たら、2秒後にパネルを消すフェーズへ
                 if (currentHookY + 200 < 0) {
                     animPhase = "waiting_panel";
-                    setTimeout(() => { animPhase = "exit_panel"; }, 2000); // 2秒のディレイ
+                    setTimeout(() => { animPhase = "exit_panel"; }, 2000);
                 }
                 requestAnimationFrame(loop);
 
@@ -213,16 +209,13 @@
                 if (animPhase === "exit_panel") {
                     bg.style.transform = 'translate(-50%, -200%)';
                     overlay.style.transform = 'translate(-50%, -200%)';
-                    // アニメーション完了後に次へ
                     setTimeout(() => {
                         bg.style.display = 'none';
                         overlay.style.display = 'none';
-                        if (isPlaying) {
-                            isPlaying = false;
-                            processQueue();
-                        }
+                        isPlaying = false;
+                        processQueue();
                     }, 800);
-                    return; // ループ終了
+                    return;
                 }
                 requestAnimationFrame(loop);
             }
@@ -233,12 +226,25 @@
     function showResultUI(user, fish, size) {
         const bg = document.getElementById('result-bg');
         const overlay = document.getElementById('result-text-overlay');
+        const fishNameEl = document.getElementById('res-fish-name');
         
         bg.className = `rarity-${fish.rarity}`;
         document.getElementById('res-user').innerText = `🎣 ${user}`;
         document.getElementById('res-rarity').innerText = '★'.repeat(fish.rarity);
         document.getElementById('res-rarity').style.color = getRarityColor(fish.rarity);
-        document.getElementById('res-fish-name').innerText = fish.name;
+        
+        // --- フォントサイズの自動調整ロジック ---
+        const name = fish.name;
+        fishNameEl.innerText = name;
+        if (name.length > 12) {
+            fishNameEl.style.fontSize = "2.2rem";
+        } else if (name.length > 8) {
+            fishNameEl.style.fontSize = "3rem";
+        } else {
+            fishNameEl.style.fontSize = "4rem"; // デフォルト
+        }
+        // ------------------------------------
+
         document.getElementById('res-size').innerText = `${size} cm`;
         
         bg.style.display = 'block';
