@@ -2,13 +2,12 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Fishing Game - Final Layout</title>
+    <title>Twitch Fishing Game - Advanced Fishing Animation</title>
     <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: transparent; font-family: 'Helvetica Neue', Arial, sans-serif; }
         #game-container { position: relative; width: 100vw; height: 100vh; }
         
-        /* 1. 背景パネル */
         #result-bg {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             min-width: 500px; height: 450px;
@@ -17,10 +16,9 @@
             display: none;
             z-index: 10;
             opacity: 1;
-            transition: opacity 1s ease; /* フェードアウト用 */
+            transition: opacity 1s ease;
         }
 
-        /* 2. 魚を描くCanvas */
         #canvas {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
@@ -29,13 +27,12 @@
             pointer-events: none;
         }
 
-        /* 3. テキストオーバーレイ */
         #result-text-overlay {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 500px; height: 450px;
             display: none;
             flex-direction: column;
-            justify-content: flex-start; /* 上詰めに変更 */
+            justify-content: flex-start;
             align-items: center;
             padding: 40px 0;
             z-index: 30;
@@ -44,20 +41,16 @@
             pointer-events: none;
             box-sizing: border-box;
             opacity: 1;
-            transition: opacity 1s ease; /* フェードアウト用 */
+            transition: opacity 1s ease;
         }
 
         .res-text { text-shadow: 2px 2px 4px #000; width: 90%; }
         #res-user { font-size: 1.6rem; color: #aaa; margin-bottom: 5px; }
         #res-fish-name { font-size: 4rem; font-weight: bold; line-height: 1.1; margin-bottom: 5px; }
-        #res-rarity { font-size: 2rem; margin-bottom: 20px; } /* 名前のすぐ下 */
-        
-        /* 魚が表示されるスペース（ここを空ける） */
+        #res-rarity { font-size: 2rem; margin-bottom: 20px; }
         .fish-spacer { height: 160px; width: 100%; }
-
         #res-size { font-size: 2.2rem; margin-top: 10px; font-weight: bold; }
 
-        /* レア度別ボーダー */
         .rarity-1 { border: 4px solid #888; box-shadow: 0 0 20px rgba(136,136,136,0.5); }
         .rarity-2 { border: 4px solid #4a4; box-shadow: 0 0 20px rgba(68,255,68,0.5); }
         .rarity-3 { border: 4px solid #44f; box-shadow: 0 0 25px rgba(68,68,255,0.6); }
@@ -83,7 +76,8 @@
         <div id="res-user" class="res-text"></div>
         <div id="res-fish-name" class="res-text"></div>
         <div id="res-rarity" class="res-text"></div>
-        <div class="fish-spacer"></div> <div id="res-size" class="res-text"></div>
+        <div class="fish-spacer"></div>
+        <div id="res-size" class="res-text"></div>
     </div>
     <div id="ranking"></div>
 </div>
@@ -104,11 +98,9 @@
     let currentHue = 0;
     let animFrame = 0;
     let animPhase = ""; 
-    let canvasAlpha = 1.0; // 魚のフェードアウト用
 
-    function drawProceduralObject(ctx, x, y, size, hue, fishId, category, alpha = 1.0) {
+    function drawProceduralObject(ctx, x, y, size, hue, fishId, category) {
         const p = size / 16;
-        ctx.globalAlpha = alpha;
         ctx.fillStyle = `hsl(${hue}, 60%, 50%)`;
         if (category === "trash" || category === "treasure") {
             ctx.fillRect(x + 3*p, y + 4*p, 10*p, 8*p);
@@ -122,7 +114,15 @@
             else ctx.fillRect(x + 4*p, y + 5*p, 9*p, 6*p);
             ctx.fillStyle = 'white'; ctx.fillRect(x + 10*p, y + 6*p, 2*p, 2*p);
         }
-        ctx.globalAlpha = 1.0;
+    }
+
+    // ウキ（四角）の描画
+    function drawBobber(ctx, x, y, size) {
+        const p = size / 10;
+        ctx.fillStyle = "#ff4b2b"; // 赤
+        ctx.fillRect(x - 5*p, y - 5*p, 10*p, 5*p);
+        ctx.fillStyle = "white";
+        ctx.fillRect(x - 5*p, y, 10*p, 5*p);
     }
 
     function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
@@ -157,70 +157,98 @@
         localStorage.setItem('fishScores', JSON.stringify(scores));
 
         animFrame = 0;
-        animPhase = "fishing";
-        canvasAlpha = 1.0;
+        animPhase = "casting"; // 最初は投下
         const bg = document.getElementById('result-bg');
         const overlay = document.getElementById('result-text-overlay');
         
-        bg.style.display = 'none';
-        bg.style.opacity = '1';
-        overlay.style.display = 'none';
-        overlay.style.opacity = '1';
+        bg.style.display = 'none'; bg.style.opacity = '1';
+        overlay.style.display = 'none'; overlay.style.opacity = '1';
 
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             animFrame++;
-            const p1 = 50, p2 = 130, p3 = 180;
-            const fishBaseSize = 40 * (currentFish.base_size_cm / 50 + 0.5);
+            
+            // フェーズ設定
+            const castEnd = 40;       // 投下完了
+            const waitEnd = 120;      // 待機（ピコピコ）完了
+            const pullEnd = 180;      // 引き上げ完了
+            const centerEnd = 230;    // 中央到着
 
-            if (animPhase === "fishing") {
-                if (animFrame < p1) currentHookY = (animFrame / p1) * (canvas.height * 0.6);
-                else if (animFrame < p2) currentHookY = (canvas.height * 0.6) - (animFrame - p1) * 5;
-                else if (animFrame < p3) {
-                    let targetY = canvas.height / 2 + 30; // 魚の位置を少し下に調整（名前の下に来るよう）
-                    let startY = (canvas.height * 0.6) - (p2 - p1) * 5;
-                    currentHookY = startY + (targetY - startY) * ((animFrame - p2)/(p3 - p2));
-                } else {
+            const fishBaseSize = 40 * (currentFish.base_size_cm / 50 + 0.5);
+            const waterY = canvas.height * 0.7; // 画面中央より少し下
+
+            if (animPhase === "casting") {
+                // 1. ウキを落とす
+                currentHookY = (animFrame / castEnd) * waterY;
+                ctx.strokeStyle = "white"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, currentHookY); ctx.stroke();
+                drawBobber(ctx, canvas.width/2, currentHookY, 20);
+                if (animFrame >= castEnd) animPhase = "waiting";
+
+            } else if (animPhase === "waiting") {
+                // 2. 水面で少し上下する（ピコピコ）
+                currentHookY = waterY + Math.sin(animFrame * 0.2) * 10;
+                ctx.strokeStyle = "white"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, currentHookY); ctx.stroke();
+                drawBobber(ctx, canvas.width/2, currentHookY, 20);
+                if (animFrame >= waitEnd) animPhase = "pulling";
+
+            } else if (animPhase === "pulling") {
+                // 3. 引き上げ（魚が登場）
+                let progress = (animFrame - waitEnd) / (pullEnd - waitEnd);
+                currentHookY = waterY - (progress * 400); // 一旦上に引き上げる
+                
+                ctx.strokeStyle = "white"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, currentHookY); ctx.stroke();
+                
+                // 魚を描画
+                const dSize = fishBaseSize;
+                drawProceduralObject(ctx, canvas.width/2 - dSize/2, currentHookY - dSize/2, dSize, currentHue, currentFish.id, currentFish.category);
+                
+                if (animFrame >= pullEnd) animPhase = "centering";
+
+            } else if (animPhase === "centering") {
+                // 4. 画面中央（リザルト位置）へ移動
+                let progress = (animFrame - pullEnd) / (centerEnd - pullEnd);
+                let startY = waterY - 400;
+                let targetY = canvas.height / 2 + 30;
+                currentHookY = startY + (targetY - startY) * progress;
+
+                const dSize = fishBaseSize * 2.5;
+                drawProceduralObject(ctx, canvas.width/2 - dSize/2, currentHookY - dSize/2, dSize, currentHue, currentFish.id, currentFish.category);
+
+                if (animFrame >= centerEnd) {
                     animPhase = "result";
                     showResultUI(username, currentFish, finalSize);
-                    setTimeout(() => { animPhase = "fadeout"; }, 5000);
+                    setTimeout(() => { animPhase = "exit_fish"; }, 5000);
                 }
-
-                if (animFrame < p3) {
-                    ctx.strokeStyle = "white"; ctx.lineWidth = 2;
-                    ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, currentHookY); ctx.stroke();
-                }
-                if (animFrame >= p1) {
-                    const dSize = (animFrame > p2) ? fishBaseSize * 2.5 : fishBaseSize;
-                    drawProceduralObject(ctx, canvas.width/2 - dSize/2, currentHookY - dSize/2, dSize, currentHue, currentFish.id, currentFish.category);
-                }
-                requestAnimationFrame(loop);
 
             } else if (animPhase === "result") {
                 currentHookY = canvas.height / 2 + 30 + Math.sin(animFrame * 0.05) * 8;
                 const dSize = fishBaseSize * 2.5;
                 drawProceduralObject(ctx, canvas.width/2 - dSize/2, currentHookY - dSize/2, dSize, currentHue, currentFish.id, currentFish.category);
-                requestAnimationFrame(loop);
 
-            } else if (animPhase === "fadeout") {
-                // その場でフェードアウト
-                canvasAlpha -= 0.02;
-                bg.style.opacity = canvasAlpha;
-                overlay.style.opacity = canvasAlpha;
-
-                currentHookY = canvas.height / 2 + 30 + Math.sin(animFrame * 0.05) * 8;
+            } else if (animPhase === "exit_fish") {
+                currentHookY -= 25;
                 const dSize = fishBaseSize * 2.5;
-                drawProceduralObject(ctx, canvas.width/2 - dSize/2, currentHookY - dSize/2, dSize, currentHue, currentFish.id, currentFish.category, canvasAlpha);
-
-                if (canvasAlpha > 0) {
-                    requestAnimationFrame(loop);
-                } else {
+                drawProceduralObject(ctx, canvas.width/2 - dSize/2, currentHookY - dSize/2, dSize, currentHue, currentFish.id, currentFish.category);
+                if (currentHookY + 200 < 0) {
+                    animPhase = "waiting_panel";
+                    setTimeout(() => { animPhase = "exit_panel"; }, 2000);
+                }
+            } else if (animPhase === "exit_panel") {
+                bg.style.opacity = '0';
+                overlay.style.opacity = '0';
+                setTimeout(() => {
                     bg.style.display = 'none';
                     overlay.style.display = 'none';
                     isPlaying = false;
                     processQueue();
-                }
+                }, 1000);
+                return;
             }
+
+            if (animPhase !== "exit_panel") requestAnimationFrame(loop);
         }
         loop();
     }
