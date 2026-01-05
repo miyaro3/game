@@ -2,47 +2,61 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Fishing Game - Final Polish</title>
+    <title>Twitch Fishing Game - Layered Result</title>
     <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: transparent; font-family: 'Helvetica Neue', Arial, sans-serif; }
         #game-container { position: relative; width: 100vw; height: 100vh; }
-        #canvas { width: 100%; height: 100%; image-rendering: pixelated; z-index: 10; position: absolute; top: 0; left: 0; pointer-events: none; }
         
-        /* リザルトUI全体のコンテナ */
-        #result-wrapper {
-            position: absolute; 
-            top: 50%; left: 50%; 
-            transform: translate(-50%, -50%);
-            display: none;
-            z-index: 20;
-            transition: transform 0.8s ease-in; /* 引き上げ用 */
-        }
-
-        #result-ui {
-            text-align: center; color: white;
-            min-width: 500px;
-            padding: 50px;
+        /* 1. 背景パネル (一番下) */
+        #result-bg {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            min-width: 500px; height: 450px;
             background: rgba(0, 0, 0, 0.85);
             border-radius: 40px;
-            position: relative;
+            display: none;
+            z-index: 10;
+            transition: transform 0.8s cubic-bezier(0.6, -0.28, 0.735, 0.045);
         }
 
-        /* 文字列のスタイル（魚より手前に表示） */
-        .res-text { position: relative; z-index: 30; text-shadow: 2px 2px 4px #000; }
-        #res-user { font-size: 1.8rem; margin-bottom: 150px; color: #aaa; } /* 魚のためのスペースを確保 */
-        #res-rarity { font-size: 1.5rem; margin-bottom: 10px; }
-        #res-fish-name { font-size: 4rem; font-weight: bold; margin-bottom: 10px; }
-        #res-size { font-size: 2rem; }
+        /* 2. 魚を描くCanvas (真ん中) */
+        #canvas {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            image-rendering: pixelated;
+            z-index: 20; /* パネルより上でテキストより下 */
+            pointer-events: none;
+        }
 
-        /* レア度別スタイル */
-        .rarity-border-1 { border: 4px solid #888; box-shadow: 0 0 20px rgba(136,136,136,0.5); }
-        .rarity-border-2 { border: 4px solid #4a4; box-shadow: 0 0 20px rgba(68,255,68,0.5); }
-        .rarity-border-3 { border: 4px solid #44f; box-shadow: 0 0 25px rgba(68,68,255,0.6); }
-        .rarity-border-4 { border: 4px solid #ea0; box-shadow: 0 0 35px rgba(238,170,0,0.7); }
-        .rarity-border-5 { border: 4px solid #f0f; box-shadow: 0 0 50px rgba(255,0,255,0.8); animation: glow-pulse 1s infinite alternate; }
+        /* 3. テキスト (一番上) */
+        #result-text-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            min-width: 500px; height: 450px;
+            display: none;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 50px 0;
+            z-index: 30; /* 魚より上 */
+            color: white;
+            text-align: center;
+            pointer-events: none;
+        }
 
-        @keyframes glow-pulse { from { transform: scale(1); } to { transform: scale(1.03); } }
+        .res-text { text-shadow: 2px 2px 4px #000; }
+        #res-user { font-size: 1.8rem; color: #aaa; margin-top: 10px; }
+        #res-rarity { font-size: 1.5rem; }
+        #res-fish-name { font-size: 4rem; font-weight: bold; }
+        #res-size { font-size: 2rem; margin-bottom: 10px; }
+
+        /* レア度別ボーダー */
+        .rarity-1 { border: 4px solid #888; box-shadow: 0 0 20px rgba(136,136,136,0.5); }
+        .rarity-2 { border: 4px solid #4a4; box-shadow: 0 0 20px rgba(68,255,68,0.5); }
+        .rarity-3 { border: 4px solid #44f; box-shadow: 0 0 25px rgba(68,68,255,0.6); }
+        .rarity-4 { border: 4px solid #ea0; box-shadow: 0 0 35px rgba(238,170,0,0.7); }
+        .rarity-5 { border: 4px solid #f0f; box-shadow: 0 0 50px rgba(255,0,255,0.8); animation: glow-pulse 1s infinite alternate; }
+
+        @keyframes glow-pulse { from { opacity: 0.9; } to { opacity: 1; transform: translate(-50%, -50%) scale(1.02); } }
 
         #ranking {
             position: absolute; bottom: -100%; left: 50%; transform: translateX(-50%);
@@ -55,17 +69,17 @@
 <body>
 
 <div id="game-container">
+    <div id="result-bg"></div>
     <canvas id="canvas"></canvas>
-    
-    <div id="result-wrapper">
-        <div id="result-ui">
-            <div id="res-user" class="res-text"></div>
+    <div id="result-text-overlay">
+        <div id="res-user" class="res-text"></div>
+        <div></div>
+        <div style="display: flex; flex-direction: column; gap: 5px;">
             <div id="res-rarity" class="res-text"></div>
             <div id="res-fish-name" class="res-text"></div>
             <div id="res-size" class="res-text"></div>
         </div>
     </div>
-
     <div id="ranking"></div>
 </div>
 
@@ -80,12 +94,11 @@
     let isPlaying = false;
     let scores = JSON.parse(localStorage.getItem('fishScores') || '{}');
 
-    // 現在の演出用変数
     let currentFish = null;
     let currentHookY = 0;
     let currentHue = 0;
     let animFrame = 0;
-    let animPhase = ""; // "fishing", "result", "exit"
+    let animPhase = ""; 
 
     function drawProceduralObject(ctx, x, y, size, hue, fishId, category) {
         const p = size / 16;
@@ -137,9 +150,14 @@
 
         animFrame = 0;
         animPhase = "fishing";
-        const wrapper = document.getElementById('result-wrapper');
-        wrapper.style.display = 'none';
-        wrapper.style.transform = 'translate(-50%, -50%)'; // 位置リセット
+        const bg = document.getElementById('result-bg');
+        const overlay = document.getElementById('result-text-overlay');
+        
+        // リセット
+        bg.style.display = 'none';
+        bg.style.transform = 'translate(-50%, -50%)';
+        overlay.style.display = 'none';
+        overlay.style.transform = 'translate(-50%, -50%)';
 
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -158,15 +176,14 @@
                 } else {
                     animPhase = "result";
                     showResultUI(username, currentFish, finalSize);
-                    setTimeout(() => { animPhase = "exit"; }, 5000); // 5秒表示
+                    // 魚を消し始めるタイマー (5秒後)
+                    setTimeout(() => { animPhase = "exit_fish"; }, 5000);
                 }
 
-                // 糸の描画
                 if (animFrame < p3) {
                     ctx.strokeStyle = "white"; ctx.lineWidth = 2;
                     ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, currentHookY); ctx.stroke();
                 }
-                // 魚の描画
                 if (animFrame >= p1) {
                     const dSize = (animFrame > p2) ? fishBaseSize * 2.5 : fishBaseSize;
                     drawProceduralObject(ctx, canvas.width/2 - dSize/2, currentHookY - dSize/2, dSize, currentHue, currentFish.id, currentFish.category);
@@ -174,44 +191,58 @@
                 requestAnimationFrame(loop);
 
             } else if (animPhase === "result") {
-                // 中央でふわふわ
                 currentHookY = canvas.height / 2 + Math.sin(animFrame * 0.05) * 8;
                 const dSize = fishBaseSize * 2.5;
                 drawProceduralObject(ctx, canvas.width/2 - dSize/2, currentHookY - dSize/2, dSize, currentHue, currentFish.id, currentFish.category);
                 requestAnimationFrame(loop);
 
-            } else if (animPhase === "exit") {
-                // 上に引き上げ
-                currentHookY -= 20;
-                wrapper.style.transform = `translate(-50%, ${-50 + (currentHookY - canvas.height/2) / 10}%)`; // パネルも連動
-                
+            } else if (animPhase === "exit_fish") {
+                // 魚だけ先に引き上げる
+                currentHookY -= 25;
                 const dSize = fishBaseSize * 2.5;
                 drawProceduralObject(ctx, canvas.width/2 - dSize/2, currentHookY - dSize/2, dSize, currentHue, currentFish.id, currentFish.category);
-
-                if (currentHookY + 200 > 0) {
-                    requestAnimationFrame(loop);
-                } else {
-                    wrapper.style.display = 'none';
-                    isPlaying = false;
-                    processQueue();
+                
+                // 魚が画面外に出たら、2秒後にパネルを消すフェーズへ
+                if (currentHookY + 200 < 0) {
+                    animPhase = "waiting_panel";
+                    setTimeout(() => { animPhase = "exit_panel"; }, 2000); // 2秒のディレイ
                 }
+                requestAnimationFrame(loop);
+
+            } else if (animPhase === "exit_panel" || animPhase === "waiting_panel") {
+                if (animPhase === "exit_panel") {
+                    bg.style.transform = 'translate(-50%, -200%)';
+                    overlay.style.transform = 'translate(-50%, -200%)';
+                    // アニメーション完了後に次へ
+                    setTimeout(() => {
+                        bg.style.display = 'none';
+                        overlay.style.display = 'none';
+                        if (isPlaying) {
+                            isPlaying = false;
+                            processQueue();
+                        }
+                    }, 800);
+                    return; // ループ終了
+                }
+                requestAnimationFrame(loop);
             }
         }
         loop();
     }
 
     function showResultUI(user, fish, size) {
-        const wrapper = document.getElementById('result-wrapper');
-        const ui = document.getElementById('result-ui');
-        ui.className = `rarity-border-${fish.rarity}`;
+        const bg = document.getElementById('result-bg');
+        const overlay = document.getElementById('result-text-overlay');
         
+        bg.className = `rarity-${fish.rarity}`;
         document.getElementById('res-user').innerText = `🎣 ${user}`;
         document.getElementById('res-rarity').innerText = '★'.repeat(fish.rarity);
         document.getElementById('res-rarity').style.color = getRarityColor(fish.rarity);
         document.getElementById('res-fish-name').innerText = fish.name;
         document.getElementById('res-size').innerText = `${size} cm`;
         
-        wrapper.style.display = 'block';
+        bg.style.display = 'block';
+        overlay.style.display = 'flex';
     }
 
     function getRarityColor(r) { return ["", "#fff", "#4f4", "#44f", "#ea0", "#f0f"][r]; }
