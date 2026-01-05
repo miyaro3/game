@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Twitch Fishing Game - Internal Sprite</title>
+    <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: transparent; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        #canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+        
+        /* デバッグパネル */
+        #debug-panel {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(0, 0, 0, 0.8); color: #0f0;
+            padding: 15px; font-family: monospace; font-size: 12px;
+            display: none; border-radius: 5px; border: 1px solid #0f0; z-index: 10000;
+        }
+
+        /* リザルト表示 */
+        #result-ui {
+            position: absolute; top: 25%; left: 50%; transform: translateX(-50%);
+            text-align: center; color: white; text-shadow: 3px 3px 0 #000;
+            display: none; pointer-events: none; width: 100%;
+        }
+        #res-fish { font-size: 4rem; margin: 10px 0; }
+        .rarity-1 { color: #ffffff; }
+        .rarity-2 { color: #44ff44; }
+        .rarity-3 { color: #4444ff; }
+        .rarity-4 { color: #ffee44; }
+        .rarity-5 { color: #ff44ff; animation: flash 0.5s infinite; }
+
+        @keyframes flash { 
+            0% { opacity: 1; transform: scale(1); } 
+            50% { opacity: 0.8; transform: scale(1.1); } 
+        }
+
+        /* ランキング（スタッフロール） */
+        #ranking {
+            position: absolute; bottom: -100%; left: 50%; transform: translateX(-50%);
+            width: 300px; color: gold; text-align: center;
+            background: rgba(0,0,0,0.6); padding: 30px; border-radius: 20px;
+            transition: bottom 12s linear;
+        }
+        .rank-item { font-size: 1.5rem; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="debug-panel">
+        <strong>DEBUG MODE</strong><hr>
+        <div>Twitch ID: <span id="db-channel">-</span></div>
+        <div>JSON: <span id="db-json">Waiting...</span></div>
+        <div>Queue: <span id="db-queue">0</span></div>
+        <div>Playing: <span id="db-playing">No</span></div>
+        <div>Last Log: <span id="db-log">-</span></div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+    
+    <div id="result-ui">
+        <div id="res-user" style="font-size: 1.5rem;"></div>
+        <div id="res-fish"></div>
+        <div id="res-detail" style="font-size: 1.2rem;"></div>
+    </div>
+
+    <div id="ranking"></div>
+</div>
+
+<script>
+    /* --- 初期設定 --- */
+    const params = new URLSearchParams(window.location.search);
+    const channel = params.get('channel');
+    const isDebug = params.get('debug') === '1';
+
+    if (isDebug) document.getElementById('debug-panel').style.display = 'block';
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let fishData = [];
+    let queue = [];
+    let isPlaying = false;
+    let scores = JSON.parse(localStorage.getItem('fishScores') || '{}');
+
+    function log(msg) {
+        console.log(msg);
+        if (isDebug) document.getElementById('db-log').innerText = msg;
+    }
+
+    /* --- ドット絵生成 (キャンバス内で作成) --- */
+    // 16x16のドット絵を生成する関数
+    function drawFishPixel(ctx, x, y, size, rarity) {
+        const p = size / 16;
+        const color = rarity === 5 ? '#ff00ff' : (rarity === 4 ? '#ffd700' : '#3399ff');
+        
+        ctx.fillStyle = color;
+        // 体
+        ctx.fillRect(x + 4*p, y + 5*p, 8*p, 6*p);
+        // 尾びれ
+        ctx.fillRect(x + 1*p, y + 4*p, 3*p, 8*p);
+        // 目
+        ctx.fillStyle = 'white';
+        ctx.fillRect(x + 10*p, y + 6*p, 2*p, 2*p);
+        ctx.fillStyle = 'black';
+        ctx.fillRect(x + 11*p, y + 7*p, 1*p, 1*p);
+    }
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    /* --- データ読み込み --- */
+    fetch('fish_data.json')
+        .then(res => res.json())
+        .then(data => {
+            fishData = data;
+            if (isDebug) document.getElementById('db-json').innerText = `Loaded (${data.length})`;
+            log("JSON Loaded");
+        })
+        .catch(err => {
+            log("JSON Load Error: " + err.message);
+            if (isDebug) document.getElementById('db-json').innerText = "ERROR";
+        });
+
+    /* --- Twitch 連携 --- */
+    if (channel) {
+        if (isDebug) document.getElementById('db-channel').innerText = channel;
+        
+        ComfyJS.onCommand = (user, command, message, flags, extra) => {
+            log(`Command: !${command} by ${user}`);
+            
+            if (command === "fish") {
+                if (queue.some(q => q.user === user)) {
+                    log("User already in queue");
+                    return;
+                }
+                queue.push({ user });
+                updateQueueUI();
+                if (!isPlaying) processQueue();
+            }
+            
+            if (command === "score") {
+                showRanking();
+            }
+        };
+        ComfyJS.Init(channel);
+    } else {
+        log("No channel specified in URL");
+    }
+
+    function updateQueueUI() {
+        if (isDebug) document.getElementById('db-queue').innerText = queue.length;
+    }
+
+    function processQueue() {
+        if (isPlaying || queue.length === 0) {
+            if (isDebug) document.getElementById('db-playing').innerText = "No / Waiting";
+            return;
+        }
+        
+        isPlaying = true;
+        if (isDebug) document.getElementById('db-playing').innerText = "YES";
+        
+        const current = queue.shift();
+        updateQueueUI();
+        startFishingAnimation(current.user);
+    }
+
+    function startFishingAnimation(username) {
+        const fish = fishData[Math.floor(Math.random() * fishData.length)];
+        const sizeScale = 0.7 + Math.random() * 0.8;
+        const finalSize = (fish.base_size_cm * sizeScale).toFixed(1);
+        const score = Math.floor(fish.rarity * finalSize);
+
+        // スコア加算
+        scores[username] = (scores[username] || 0) + score;
+        localStorage.setItem('fishScores', JSON.stringify(scores));
+
+        let frame = 0;
+        const totalFrames = 150;
+
+        function frameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            frame++;
+
+            // 1. 釣り糸の動き
+            let hookY;
+            if (frame < 50) { // 下ろす
+                hookY = (frame / 50) * (canvas.height * 0.6);
+            } else if (frame < 80) { // ヒット待ち（揺れ）
+                hookY = (canvas.height * 0.6) + Math.sin(frame * 0.5) * 5;
+            } else { // 引き上げ
+                hookY = (canvas.height * 0.6) - (frame - 80) * 10;
+            }
+
+            // 釣り糸描画
+            ctx.beginPath();
+            ctx.strokeStyle = "#eee";
+            ctx.lineWidth = 3;
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, hookY);
+            ctx.stroke();
+
+            // 2. 魚の描画 (ヒット後)
+            if (frame >= 80) {
+                // サイズによって表示サイズを変える
+                const displaySize = 40 * (fish.base_size_cm / 50 + 0.5);
+                drawFishPixel(ctx, canvas.width / 2 - displaySize / 2, hookY, displaySize, fish.rarity);
+            }
+
+            if (frame < totalFrames && hookY + 100 > 0) {
+                requestAnimationFrame(frameLoop);
+            } else {
+                showResultUI(username, fish, finalSize);
+            }
+        }
+        frameLoop();
+    }
+
+    function showResultUI(user, fish, size) {
+        const ui = document.getElementById('result-ui');
+        document.getElementById('res-user').innerText = `🎉 ${user}'s Catch!`;
+        document.getElementById('res-fish').innerText = fish.name;
+        document.getElementById('res-fish').className = `rarity-${fish.rarity}`;
+        document.getElementById('res-detail').innerText = `Rarity: ${'★'.repeat(fish.rarity)} | Size: ${size}cm`;
+        
+        ui.style.display = 'block';
+        
+        setTimeout(() => {
+            ui.style.display = 'none';
+            isPlaying = false;
+            processQueue();
+        }, 4000);
+    }
+
+    function showRanking() {
+        const rankDiv = document.getElementById('ranking');
+        const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        
+        rankDiv.innerHTML = "<h2 style='color:white'>🏆 TOP ANGLERS</h2>" + 
+            sorted.map(([name, pts], i) => `<div class="rank-item">${i+1}. ${name}: ${pts} pt</div>`).join('');
+        
+        rankDiv.style.bottom = '120%'; // 上へ流す
+        setTimeout(() => { 
+            rankDiv.style.bottom = '-100%'; // 位置リセット
+        }, 13000);
+    }
+</script>
+</body>
+</html>
