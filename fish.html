@@ -2,92 +2,61 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Fishing Game - Center Result</title>
+    <title>Twitch Fishing Game - Procedural Fish</title>
     <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: transparent; font-family: 'Helvetica Neue', Arial, sans-serif; }
         #game-container { position: relative; width: 100vw; height: 100vh; }
         #canvas { width: 100%; height: 100%; image-rendering: pixelated; }
         
-        /* デバッグパネル */
-        #debug-panel {
-            position: absolute; top: 10px; left: 10px;
-            background: rgba(0, 0, 0, 0.8); color: #0f0;
-            padding: 15px; font-family: monospace; font-size: 12px;
-            display: none; border-radius: 5px; border: 1px solid #0f0; z-index: 10000;
-        }
-
-        /* リザルト表示（中央・半透明背景） */
         #result-ui {
             position: absolute; 
             top: 50%; left: 50%; 
             transform: translate(-50%, -50%);
             text-align: center; color: white;
-            display: none; pointer-events: none; width: auto;
-            min-width: 400px;
+            display: none; pointer-events: none;
+            min-width: 450px;
             padding: 40px;
-            background: rgba(0, 0, 0, 0.7); /* 半透明背景 */
-            border-radius: 20px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 30px;
             z-index: 50;
+            transition: all 0.5s ease;
         }
 
-        #res-fish { font-size: 4rem; margin: 20px 0; font-weight: bold; }
+        #res-fish { font-size: 4.5rem; margin: 20px 0; font-weight: bold; }
         
-        /* レア度別カラー */
-        .rarity-1 { color: #ffffff; text-shadow: 0 0 10px #aaa; }
-        .rarity-2 { color: #44ff44; text-shadow: 0 0 10px #2a2; }
-        .rarity-3 { color: #4444ff; text-shadow: 0 0 10px #22a; }
-        .rarity-4 { color: #ffee44; text-shadow: 0 0 15px #aa0; }
-        .rarity-5 { color: #ff44ff; animation: flash 0.5s infinite; text-shadow: 0 0 20px #a0a; }
+        /* レア度別スタイル（JSで動的にクラスを付け替え） */
+        .rarity-border-1 { border: 4px solid #888; box-shadow: 0 0 20px rgba(136,136,136,0.5); }
+        .rarity-border-2 { border: 4px solid #4a4; box-shadow: 0 0 20px rgba(68,255,68,0.5); }
+        .rarity-border-3 { border: 4px solid #44f; box-shadow: 0 0 25px rgba(68,68,255,0.6); }
+        .rarity-border-4 { border: 4px solid #ea0; box-shadow: 0 0 35px rgba(238,170,0,0.7); }
+        .rarity-border-5 { border: 4px solid #f0f; box-shadow: 0 0 50px rgba(255,0,255,0.8); animation: glow-pulse 1s infinite alternate; }
 
-        @keyframes flash { 
-            0% { transform: scale(1); filter: brightness(1); } 
-            50% { transform: scale(1.05); filter: brightness(1.3); } 
-        }
+        @keyframes glow-pulse { from { transform: translate(-50%, -50%) scale(1); } to { transform: translate(-50%, -50%) scale(1.02); } }
 
-        /* ランキング */
         #ranking {
             position: absolute; bottom: -100%; left: 50%; transform: translateX(-50%);
             width: 350px; color: gold; text-align: center;
-            background: rgba(0,0,0,0.8); padding: 30px; border-radius: 20px;
-            border: 1px solid gold;
-            transition: bottom 12s linear;
-            z-index: 100;
+            background: rgba(0,0,0,0.9); padding: 30px; border-radius: 20px;
+            border: 2px solid gold; transition: bottom 12s linear; z-index: 100;
         }
-        .rank-item { font-size: 1.5rem; margin: 10px 0; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <div id="debug-panel">
-        <strong>DEBUG MODE</strong><hr>
-        <div>Channel: <span id="db-channel">-</span></div>
-        <div>JSON: <span id="db-json">-</span></div>
-        <div>Queue: <span id="db-queue">0</span></div>
-        <div>Log: <span id="db-log">-</span></div>
-    </div>
-
     <canvas id="canvas"></canvas>
-    
     <div id="result-ui">
-        <div id="res-user" style="font-size: 1.8rem; color: #ddd; border-bottom: 1px solid #555; padding-bottom: 10px;"></div>
+        <div id="res-user" style="font-size: 1.5rem; opacity: 0.8;"></div>
         <div id="res-fish"></div>
-        <div id="res-detail" style="font-size: 1.5rem; color: #fff;"></div>
+        <div id="res-detail" style="font-size: 1.8rem;"></div>
     </div>
-
     <div id="ranking"></div>
 </div>
 
 <script>
     const params = new URLSearchParams(window.location.search);
     const channel = params.get('channel');
-    const isDebug = params.get('debug') === '1';
-
-    if (isDebug) document.getElementById('debug-panel').style.display = 'block';
-
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     let fishData = [];
@@ -95,22 +64,54 @@
     let isPlaying = false;
     let scores = JSON.parse(localStorage.getItem('fishScores') || '{}');
 
-    function log(msg) {
-        if (isDebug) document.getElementById('db-log').innerText = msg;
-    }
-
-    // ドット絵描画
-    function drawFishPixel(ctx, x, y, size, rarity) {
+    // パーツ組み合わせ描画関数
+    function drawProceduralObject(ctx, x, y, size, hue, fishId, category) {
         const p = size / 16;
-        const color = rarity === 5 ? '#ff00ff' : (rarity === 4 ? '#ffd700' : (rarity === 3 ? '#5555ff' : '#888888'));
-        
-        ctx.fillStyle = color;
-        ctx.fillRect(x + 4*p, y + 5*p, 8*p, 6*p); // 体
-        ctx.fillRect(x + 1*p, y + 4*p, 3*p, 8*p); // 尾
-        ctx.fillStyle = 'white';
-        ctx.fillRect(x + 10*p, y + 6*p, 2*p, 2*p); // 目
-        ctx.fillStyle = 'black';
-        ctx.fillRect(x + 11*p, y + 7*p, 1*p, 1*p);
+        ctx.fillStyle = `hsl(${hue}, 60%, 50%)`;
+
+        if (category === "trash" || category === "treasure") {
+            // ゴミ・お宝は「箱型」
+            ctx.fillRect(x + 3*p, y + 4*p, 10*p, 8*p);
+            ctx.fillStyle = `hsl(${hue}, 60%, 30%)`;
+            ctx.fillRect(x + 4*p, y + 5*p, 2*p, 2*p); // 模様
+        } else {
+            // 魚：IDに基づいてパーツを決定
+            const bodyType = fishId % 3;
+            const eyeType = (fishId >> 1) % 3;
+            const tailType = (fishId >> 2) % 3;
+
+            // 1. 尾びれ
+            ctx.fillStyle = `hsl(${hue}, 60%, 40%)`;
+            if (tailType === 0) { // 三角
+                ctx.fillRect(x + 1*p, y + 4*p, 3*p, 8*p);
+            } else if (tailType === 1) { // 二股
+                ctx.fillRect(x + 1*p, y + 3*p, 2*p, 3*p);
+                ctx.fillRect(x + 1*p, y + 10*p, 2*p, 3*p);
+            } else { // 丸
+                ctx.fillRect(x + 2*p, y + 5*p, 2*p, 6*p);
+            }
+
+            // 2. 体
+            ctx.fillStyle = `hsl(${hue}, 60%, 50%)`;
+            if (bodyType === 0) { // 標準
+                ctx.fillRect(x + 4*p, y + 5*p, 9*p, 6*p);
+            } else if (bodyType === 1) { // 細長い
+                ctx.fillRect(x + 4*p, y + 7*p, 11*p, 3*p);
+            } else { // まんまる
+                ctx.fillRect(x + 5*p, y + 3*p, 7*p, 10*p);
+            }
+
+            // 3. 目
+            ctx.fillStyle = 'white';
+            const eyeX = (bodyType === 1) ? 12 : 10;
+            if (eyeType === 0) ctx.fillRect(x + eyeX*p, y + 6*p, 2*p, 2*p); // 普通
+            else if (eyeType === 1) ctx.fillRect(x + eyeX*p, y + 5*p, 1*p, 1*p); // 小さい
+            else { // 縦長
+                ctx.fillRect(x + eyeX*p, y + 6*p, 2*p, 3*p);
+                ctx.fillStyle = 'black';
+                ctx.fillRect(x + (eyeX+1)*p, y + 7*p, 1*p, 1*p);
+            }
+        }
     }
 
     function resize() {
@@ -120,21 +121,15 @@
     window.addEventListener('resize', resize);
     resize();
 
-    fetch('fish_data.json')
-        .then(res => res.json())
-        .then(data => {
-            fishData = data;
-            if (isDebug) document.getElementById('db-json').innerText = `OK (${data.length})`;
-        });
+    fetch('fish_data.json').then(res => res.json()).then(data => { fishData = data; });
 
     if (channel) {
-        if (isDebug) document.getElementById('db-channel').innerText = channel;
         ComfyJS.onCommand = (user, command) => {
             if (command === "fish") {
-                if (queue.some(q => q.user === user)) return;
-                queue.push({ user });
-                if (isDebug) document.getElementById('db-queue').innerText = queue.length;
-                if (!isPlaying) processQueue();
+                if (!queue.some(q => q.user === user)) {
+                    queue.push({ user });
+                    if (!isPlaying) processQueue();
+                }
             }
             if (command === "score") showRanking();
         };
@@ -144,89 +139,59 @@
     function processQueue() {
         if (isPlaying || queue.length === 0) return;
         isPlaying = true;
-        const current = queue.shift();
-        if (isDebug) document.getElementById('db-queue').innerText = queue.length;
-        startFishingAnimation(current.user);
+        startFishingAnimation(queue.shift().user);
     }
 
     function startFishingAnimation(username) {
         const fish = fishData[Math.floor(Math.random() * fishData.length)];
-        const sizeScale = 0.8 + Math.random() * 0.6;
-        const finalSize = (fish.base_size_cm * sizeScale).toFixed(1);
-        const score = Math.floor(fish.rarity * finalSize);
-
-        scores[username] = (scores[username] || 0) + score;
+        const finalSize = (fish.base_size_cm * (0.8 + Math.random() * 0.6)).toFixed(1);
+        const fishHue = Math.floor(Math.random() * 360);
+        scores[username] = (scores[username] || 0) + Math.floor(fish.rarity * finalSize);
         localStorage.setItem('fishScores', JSON.stringify(scores));
 
         let frame = 0;
-        const phase1 = 40;  // 糸を下ろす
-        const phase2 = 70;  // ヒット・引き上げ
-        const phase3 = 100; // 中央へ移動
-        const totalFrames = 300; // 全体の長さ
+        const p1 = 50, p2 = 130, p3 = 180, total = 380;
 
         function frameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             frame++;
-
-            let hookX = canvas.width / 2;
             let hookY;
-            let currentFishSize = 40 * (fish.base_size_cm / 50 + 0.5);
+            const isCaught = frame >= p1;
+            
+            if (frame < p1) hookY = (frame / p1) * (canvas.height * 0.6);
+            else if (frame < p2) hookY = (canvas.height * 0.6) - (frame - p1) * 5;
+            else if (frame < p3) hookY = (canvas.height * 0.6) - (p2 - p1) * 5 + ((canvas.height/2) - ((canvas.height * 0.6) - (p2 - p1) * 5)) * ((frame - p2)/(p3 - p2));
+            else hookY = canvas.height / 2 + Math.sin(frame * 0.05) * 5;
 
-            if (frame < phase1) {
-                // 1. 糸を下ろす
-                hookY = (frame / phase1) * (canvas.height * 0.6);
-            } else if (frame < phase2) {
-                // 2. 引き上げ開始
-                hookY = (canvas.height * 0.6) - (frame - phase1) * 15;
-            } else if (frame < phase3) {
-                // 3. 画面中央へ
-                let targetY = canvas.height / 2;
-                let startY = (canvas.height * 0.6) - (phase2 - phase1) * 15;
-                let progress = (frame - phase2) / (phase3 - phase2);
-                hookY = startY + (targetY - startY) * progress;
-            } else {
-                // 4. 中央で静止（少し揺れる演出）
-                hookY = canvas.height / 2 + Math.sin(frame * 0.1) * 5;
+            if (frame < p3) {
+                ctx.strokeStyle = "white"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(canvas.width/2, 0); ctx.lineTo(canvas.width/2, hookY); ctx.stroke();
             }
 
-            // 釣り糸の描画（引き上げ完了まで）
-            if (frame < phase3) {
-                ctx.beginPath();
-                ctx.strokeStyle = "#fff";
-                ctx.lineWidth = 2;
-                ctx.moveTo(hookX, 0);
-                ctx.lineTo(hookX, hookY);
-                ctx.stroke();
+            if (isCaught) {
+                const dSize = 40 * (fish.base_size_cm / 50 + 0.5) * (frame > p2 ? 1.5 : 1);
+                drawProceduralObject(ctx, canvas.width/2 - dSize/2, hookY - dSize/2, dSize, fishHue, fish.id, fish.category);
             }
 
-            // 魚の描画
-            if (frame >= phase1) {
-                // リザルト中は少し大きく表示
-                const displaySize = (frame > phase2) ? currentFishSize * 1.5 : currentFishSize;
-                drawFishPixel(ctx, hookX - displaySize / 2, hookY - displaySize / 2, displaySize, fish.rarity);
-            }
-
-            // リザルト表示のタイミング
-            if (frame === phase3) {
-                showResultUI(username, fish, finalSize);
-            }
-
-            if (frame < totalFrames) {
-                requestAnimationFrame(frameLoop);
-            } else {
-                hideResultUI();
-            }
+            if (frame === p3) showResultUI(username, fish, finalSize);
+            if (frame < total) requestAnimationFrame(frameLoop);
+            else { hideResultUI(); }
         }
         frameLoop();
     }
 
     function showResultUI(user, fish, size) {
         const ui = document.getElementById('result-ui');
+        ui.className = `rarity-border-${fish.rarity}`;
         document.getElementById('res-user').innerText = `🎣 ${user}`;
         document.getElementById('res-fish').innerText = fish.name;
-        document.getElementById('res-fish').className = `rarity-${fish.rarity}`;
-        document.getElementById('res-detail').innerText = `レア度: ${'★'.repeat(fish.rarity)} | サイズ: ${size}cm`;
+        document.getElementById('res-fish').style.color = getRarityColor(fish.rarity);
+        document.getElementById('res-detail').innerText = `${'★'.repeat(fish.rarity)} | ${size}cm`;
         ui.style.display = 'block';
+    }
+
+    function getRarityColor(r) {
+        return ["#fff", "#fff", "#4f4", "#44f", "#fa0", "#f0f"][r];
     }
 
     function hideResultUI() {
@@ -238,8 +203,7 @@
     function showRanking() {
         const rankDiv = document.getElementById('ranking');
         const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]).slice(0, 10);
-        rankDiv.innerHTML = "<h2 style='color:gold; border-bottom: 2px solid gold;'>🏆 RANKING</h2>" + 
-            sorted.map(([name, pts], i) => `<div class="rank-item">${i+1}. ${name} - ${pts} pt</div>`).join('');
+        rankDiv.innerHTML = "<h2>🏆 TOP ANGLERS</h2>" + sorted.map(([n, p], i) => `<div>${i+1}. ${n} - ${p}pt</div>`).join('');
         rankDiv.style.bottom = '120%';
         setTimeout(() => { rankDiv.style.bottom = '-100%'; }, 13000);
     }
