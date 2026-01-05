@@ -2,10 +2,10 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Fishing Game - Internal Sprite</title>
+    <title>Twitch Fishing Game - Center Result</title>
     <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: transparent; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; overflow: hidden; background: transparent; font-family: 'Helvetica Neue', Arial, sans-serif; }
         #game-container { position: relative; width: 100vw; height: 100vh; }
         #canvas { width: 100%; height: 100%; image-rendering: pixelated; }
         
@@ -17,32 +17,46 @@
             display: none; border-radius: 5px; border: 1px solid #0f0; z-index: 10000;
         }
 
-        /* リザルト表示 */
+        /* リザルト表示（中央・半透明背景） */
         #result-ui {
-            position: absolute; top: 25%; left: 50%; transform: translateX(-50%);
-            text-align: center; color: white; text-shadow: 3px 3px 0 #000;
-            display: none; pointer-events: none; width: 100%;
+            position: absolute; 
+            top: 50%; left: 50%; 
+            transform: translate(-50%, -50%);
+            text-align: center; color: white;
+            display: none; pointer-events: none; width: auto;
+            min-width: 400px;
+            padding: 40px;
+            background: rgba(0, 0, 0, 0.7); /* 半透明背景 */
+            border-radius: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            z-index: 50;
         }
-        #res-fish { font-size: 4rem; margin: 10px 0; }
-        .rarity-1 { color: #ffffff; }
-        .rarity-2 { color: #44ff44; }
-        .rarity-3 { color: #4444ff; }
-        .rarity-4 { color: #ffee44; }
-        .rarity-5 { color: #ff44ff; animation: flash 0.5s infinite; }
+
+        #res-fish { font-size: 4rem; margin: 20px 0; font-weight: bold; }
+        
+        /* レア度別カラー */
+        .rarity-1 { color: #ffffff; text-shadow: 0 0 10px #aaa; }
+        .rarity-2 { color: #44ff44; text-shadow: 0 0 10px #2a2; }
+        .rarity-3 { color: #4444ff; text-shadow: 0 0 10px #22a; }
+        .rarity-4 { color: #ffee44; text-shadow: 0 0 15px #aa0; }
+        .rarity-5 { color: #ff44ff; animation: flash 0.5s infinite; text-shadow: 0 0 20px #a0a; }
 
         @keyframes flash { 
-            0% { opacity: 1; transform: scale(1); } 
-            50% { opacity: 0.8; transform: scale(1.1); } 
+            0% { transform: scale(1); filter: brightness(1); } 
+            50% { transform: scale(1.05); filter: brightness(1.3); } 
         }
 
-        /* ランキング（スタッフロール） */
+        /* ランキング */
         #ranking {
             position: absolute; bottom: -100%; left: 50%; transform: translateX(-50%);
-            width: 300px; color: gold; text-align: center;
-            background: rgba(0,0,0,0.6); padding: 30px; border-radius: 20px;
+            width: 350px; color: gold; text-align: center;
+            background: rgba(0,0,0,0.8); padding: 30px; border-radius: 20px;
+            border: 1px solid gold;
             transition: bottom 12s linear;
+            z-index: 100;
         }
-        .rank-item { font-size: 1.5rem; margin: 10px 0; }
+        .rank-item { font-size: 1.5rem; margin: 10px 0; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -50,26 +64,24 @@
 <div id="game-container">
     <div id="debug-panel">
         <strong>DEBUG MODE</strong><hr>
-        <div>Twitch ID: <span id="db-channel">-</span></div>
-        <div>JSON: <span id="db-json">Waiting...</span></div>
+        <div>Channel: <span id="db-channel">-</span></div>
+        <div>JSON: <span id="db-json">-</span></div>
         <div>Queue: <span id="db-queue">0</span></div>
-        <div>Playing: <span id="db-playing">No</span></div>
-        <div>Last Log: <span id="db-log">-</span></div>
+        <div>Log: <span id="db-log">-</span></div>
     </div>
 
     <canvas id="canvas"></canvas>
     
     <div id="result-ui">
-        <div id="res-user" style="font-size: 1.5rem;"></div>
+        <div id="res-user" style="font-size: 1.8rem; color: #ddd; border-bottom: 1px solid #555; padding-bottom: 10px;"></div>
         <div id="res-fish"></div>
-        <div id="res-detail" style="font-size: 1.2rem;"></div>
+        <div id="res-detail" style="font-size: 1.5rem; color: #fff;"></div>
     </div>
 
     <div id="ranking"></div>
 </div>
 
 <script>
-    /* --- 初期設定 --- */
     const params = new URLSearchParams(window.location.search);
     const channel = params.get('channel');
     const isDebug = params.get('debug') === '1';
@@ -84,24 +96,19 @@
     let scores = JSON.parse(localStorage.getItem('fishScores') || '{}');
 
     function log(msg) {
-        console.log(msg);
         if (isDebug) document.getElementById('db-log').innerText = msg;
     }
 
-    /* --- ドット絵生成 (キャンバス内で作成) --- */
-    // 16x16のドット絵を生成する関数
+    // ドット絵描画
     function drawFishPixel(ctx, x, y, size, rarity) {
         const p = size / 16;
-        const color = rarity === 5 ? '#ff00ff' : (rarity === 4 ? '#ffd700' : '#3399ff');
+        const color = rarity === 5 ? '#ff00ff' : (rarity === 4 ? '#ffd700' : (rarity === 3 ? '#5555ff' : '#888888'));
         
         ctx.fillStyle = color;
-        // 体
-        ctx.fillRect(x + 4*p, y + 5*p, 8*p, 6*p);
-        // 尾びれ
-        ctx.fillRect(x + 1*p, y + 4*p, 3*p, 8*p);
-        // 目
+        ctx.fillRect(x + 4*p, y + 5*p, 8*p, 6*p); // 体
+        ctx.fillRect(x + 1*p, y + 4*p, 3*p, 8*p); // 尾
         ctx.fillStyle = 'white';
-        ctx.fillRect(x + 10*p, y + 6*p, 2*p, 2*p);
+        ctx.fillRect(x + 10*p, y + 6*p, 2*p, 2*p); // 目
         ctx.fillStyle = 'black';
         ctx.fillRect(x + 11*p, y + 7*p, 1*p, 1*p);
     }
@@ -113,109 +120,101 @@
     window.addEventListener('resize', resize);
     resize();
 
-    /* --- データ読み込み --- */
     fetch('fish_data.json')
         .then(res => res.json())
         .then(data => {
             fishData = data;
-            if (isDebug) document.getElementById('db-json').innerText = `Loaded (${data.length})`;
-            log("JSON Loaded");
-        })
-        .catch(err => {
-            log("JSON Load Error: " + err.message);
-            if (isDebug) document.getElementById('db-json').innerText = "ERROR";
+            if (isDebug) document.getElementById('db-json').innerText = `OK (${data.length})`;
         });
 
-    /* --- Twitch 連携 --- */
     if (channel) {
         if (isDebug) document.getElementById('db-channel').innerText = channel;
-        
-        ComfyJS.onCommand = (user, command, message, flags, extra) => {
-            log(`Command: !${command} by ${user}`);
-            
+        ComfyJS.onCommand = (user, command) => {
             if (command === "fish") {
-                if (queue.some(q => q.user === user)) {
-                    log("User already in queue");
-                    return;
-                }
+                if (queue.some(q => q.user === user)) return;
                 queue.push({ user });
-                updateQueueUI();
+                if (isDebug) document.getElementById('db-queue').innerText = queue.length;
                 if (!isPlaying) processQueue();
             }
-            
-            if (command === "score") {
-                showRanking();
-            }
+            if (command === "score") showRanking();
         };
         ComfyJS.Init(channel);
-    } else {
-        log("No channel specified in URL");
-    }
-
-    function updateQueueUI() {
-        if (isDebug) document.getElementById('db-queue').innerText = queue.length;
     }
 
     function processQueue() {
-        if (isPlaying || queue.length === 0) {
-            if (isDebug) document.getElementById('db-playing').innerText = "No / Waiting";
-            return;
-        }
-        
+        if (isPlaying || queue.length === 0) return;
         isPlaying = true;
-        if (isDebug) document.getElementById('db-playing').innerText = "YES";
-        
         const current = queue.shift();
-        updateQueueUI();
+        if (isDebug) document.getElementById('db-queue').innerText = queue.length;
         startFishingAnimation(current.user);
     }
 
     function startFishingAnimation(username) {
         const fish = fishData[Math.floor(Math.random() * fishData.length)];
-        const sizeScale = 0.7 + Math.random() * 0.8;
+        const sizeScale = 0.8 + Math.random() * 0.6;
         const finalSize = (fish.base_size_cm * sizeScale).toFixed(1);
         const score = Math.floor(fish.rarity * finalSize);
 
-        // スコア加算
         scores[username] = (scores[username] || 0) + score;
         localStorage.setItem('fishScores', JSON.stringify(scores));
 
         let frame = 0;
-        const totalFrames = 150;
+        const phase1 = 40;  // 糸を下ろす
+        const phase2 = 70;  // ヒット・引き上げ
+        const phase3 = 100; // 中央へ移動
+        const totalFrames = 300; // 全体の長さ
 
         function frameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             frame++;
 
-            // 1. 釣り糸の動き
+            let hookX = canvas.width / 2;
             let hookY;
-            if (frame < 50) { // 下ろす
-                hookY = (frame / 50) * (canvas.height * 0.6);
-            } else if (frame < 80) { // ヒット待ち（揺れ）
-                hookY = (canvas.height * 0.6) + Math.sin(frame * 0.5) * 5;
-            } else { // 引き上げ
-                hookY = (canvas.height * 0.6) - (frame - 80) * 10;
+            let currentFishSize = 40 * (fish.base_size_cm / 50 + 0.5);
+
+            if (frame < phase1) {
+                // 1. 糸を下ろす
+                hookY = (frame / phase1) * (canvas.height * 0.6);
+            } else if (frame < phase2) {
+                // 2. 引き上げ開始
+                hookY = (canvas.height * 0.6) - (frame - phase1) * 15;
+            } else if (frame < phase3) {
+                // 3. 画面中央へ
+                let targetY = canvas.height / 2;
+                let startY = (canvas.height * 0.6) - (phase2 - phase1) * 15;
+                let progress = (frame - phase2) / (phase3 - phase2);
+                hookY = startY + (targetY - startY) * progress;
+            } else {
+                // 4. 中央で静止（少し揺れる演出）
+                hookY = canvas.height / 2 + Math.sin(frame * 0.1) * 5;
             }
 
-            // 釣り糸描画
-            ctx.beginPath();
-            ctx.strokeStyle = "#eee";
-            ctx.lineWidth = 3;
-            ctx.moveTo(canvas.width / 2, 0);
-            ctx.lineTo(canvas.width / 2, hookY);
-            ctx.stroke();
-
-            // 2. 魚の描画 (ヒット後)
-            if (frame >= 80) {
-                // サイズによって表示サイズを変える
-                const displaySize = 40 * (fish.base_size_cm / 50 + 0.5);
-                drawFishPixel(ctx, canvas.width / 2 - displaySize / 2, hookY, displaySize, fish.rarity);
+            // 釣り糸の描画（引き上げ完了まで）
+            if (frame < phase3) {
+                ctx.beginPath();
+                ctx.strokeStyle = "#fff";
+                ctx.lineWidth = 2;
+                ctx.moveTo(hookX, 0);
+                ctx.lineTo(hookX, hookY);
+                ctx.stroke();
             }
 
-            if (frame < totalFrames && hookY + 100 > 0) {
+            // 魚の描画
+            if (frame >= phase1) {
+                // リザルト中は少し大きく表示
+                const displaySize = (frame > phase2) ? currentFishSize * 1.5 : currentFishSize;
+                drawFishPixel(ctx, hookX - displaySize / 2, hookY - displaySize / 2, displaySize, fish.rarity);
+            }
+
+            // リザルト表示のタイミング
+            if (frame === phase3) {
+                showResultUI(username, fish, finalSize);
+            }
+
+            if (frame < totalFrames) {
                 requestAnimationFrame(frameLoop);
             } else {
-                showResultUI(username, fish, finalSize);
+                hideResultUI();
             }
         }
         frameLoop();
@@ -223,31 +222,26 @@
 
     function showResultUI(user, fish, size) {
         const ui = document.getElementById('result-ui');
-        document.getElementById('res-user').innerText = `🎉 ${user}'s Catch!`;
+        document.getElementById('res-user').innerText = `🎣 ${user}`;
         document.getElementById('res-fish').innerText = fish.name;
         document.getElementById('res-fish').className = `rarity-${fish.rarity}`;
-        document.getElementById('res-detail').innerText = `Rarity: ${'★'.repeat(fish.rarity)} | Size: ${size}cm`;
-        
+        document.getElementById('res-detail').innerText = `レア度: ${'★'.repeat(fish.rarity)} | サイズ: ${size}cm`;
         ui.style.display = 'block';
-        
-        setTimeout(() => {
-            ui.style.display = 'none';
-            isPlaying = false;
-            processQueue();
-        }, 4000);
+    }
+
+    function hideResultUI() {
+        document.getElementById('result-ui').style.display = 'none';
+        isPlaying = false;
+        processQueue();
     }
 
     function showRanking() {
         const rankDiv = document.getElementById('ranking');
         const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]).slice(0, 10);
-        
-        rankDiv.innerHTML = "<h2 style='color:white'>🏆 TOP ANGLERS</h2>" + 
-            sorted.map(([name, pts], i) => `<div class="rank-item">${i+1}. ${name}: ${pts} pt</div>`).join('');
-        
-        rankDiv.style.bottom = '120%'; // 上へ流す
-        setTimeout(() => { 
-            rankDiv.style.bottom = '-100%'; // 位置リセット
-        }, 13000);
+        rankDiv.innerHTML = "<h2 style='color:gold; border-bottom: 2px solid gold;'>🏆 RANKING</h2>" + 
+            sorted.map(([name, pts], i) => `<div class="rank-item">${i+1}. ${name} - ${pts} pt</div>`).join('');
+        rankDiv.style.bottom = '120%';
+        setTimeout(() => { rankDiv.style.bottom = '-100%'; }, 13000);
     }
 </script>
 </body>
