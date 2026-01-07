@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Twitch Pixel Sushi Battle</title>
+    <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; overflow: hidden; background: transparent; font-family: 'DotGothic16', sans-serif; color: white; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+
+        .text-bg { background: rgba(40, 40, 40, 0.8); padding: 2px 10px; border-radius: 4px; border: 1px solid #666; }
+
+        /* リザルト画面 */
+        #result-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            min-width: 650px; padding: 40px;
+            background: rgba(0, 0, 0, 0.95);
+            border: 6px solid #fff; border-radius: 20px;
+            display: none; z-index: 200; text-align: center;
+        }
+        .res-user { font-size: 1.8rem; color: #aaa; margin-bottom: 10px; }
+        .res-yaku { font-size: 3.2rem; color: #ffeb3b; margin: 15px 0; text-shadow: 3px 3px #f44336; }
+        .res-score { font-size: 4.5rem; font-weight: bold; color: #fff; }
+
+        /* 個別スロット（取得時・スコア確認時用） */
+        .ui-layer-center {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            display: flex; flex-direction: column; gap: 20px; align-items: center; width: 100%;
+            pointer-events: none;
+        }
+        .info-card {
+            background: rgba(0,0,0,0.9); padding: 25px; border: 4px solid #fff; border-radius: 15px;
+            text-align: center; min-width: 320px;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        .slot-items { display: flex; justify-content: center; gap: 25px; }
+        .slot-sushi-box { text-align: center; }
+        .slot-sushi-name { font-size: 1.2rem; margin-top: 10px; background: rgba(60, 60, 60, 0.9); padding: 2px 8px; border-radius: 4px; }
+        .circle-empty { width: 60px; height: 60px; border: 4px dashed #444; border-radius: 50%; }
+
+        /* !score用の表示 */
+        .score-display { font-size: 3rem; color: #00ffcc; text-shadow: 2px 2px #000; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="sushiCanvas"></canvas>
+        <div id="result-overlay">
+            <div id="res-user" class="res-user"></div>
+            <div id="res-sushi-container" class="slot-items" style="margin-bottom:20px;"></div>
+            <div id="res-yaku" class="res-yaku"></div>
+            <div id="res-score" class="res-score"></div>
+        </div>
+        <div id="ui-layer" class="ui-layer-center"></div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const targetChannel = params.get('channel');
+        const isDebug = params.get('debug') === 'true';
+
+        const sushiData = [
+            { id: 1, name: "アジ", base_score: 100, category_large: "にぎり", category_medium: "白身", attribute: "無し", color: "#A9A9A9" },
+            { id: 2, name: "イワシ", base_score: 100, category_large: "にぎり", category_medium: "白身", attribute: "無し", color: "#808080" },
+            { id: 3, name: "サバ", base_score: 100, category_large: "にぎり", category_medium: "白身", attribute: "無し", color: "#708090" },
+            { id: 4, name: "たまご", base_score: 100, category_large: "にぎり", category_medium: "たまご", attribute: "無し", color: "#FFD700" },
+            { id: 5, name: "エビ", base_score: 100, category_large: "にぎり", category_medium: "甲殻類", attribute: "無し", color: "#FF8C00" },
+            { id: 6, name: "鉄火巻", base_score: 100, category_large: "巻物", category_medium: "赤身", attribute: "無し", color: "#FF0000" },
+            { id: 7, name: "カッパ巻", base_score: 100, category_large: "巻物", category_medium: "野菜", attribute: "無し", color: "#90EE90" },
+            { id: 8, name: "納豆巻", base_score: 100, category_large: "巻物", category_medium: "野菜", attribute: "無し", color: "#8B4513" },
+            { id: 9, name: "かにみそ", base_score: 200, category_large: "軍艦", category_medium: "甲殻類", attribute: "無し", color: "#5D4037" },
+            { id: 10, name: "えんがわ", base_score: 200, category_large: "軍艦", category_medium: "白身", attribute: "無し", color: "#FFFFFF" },
+            { id: 11, name: "マグロ", base_score: 200, category_large: "にぎり", category_medium: "赤身", attribute: "無し", color: "#E60000" },
+            { id: 12, name: "トロサーモン", base_score: 200, category_large: "にぎり", category_medium: "白身", attribute: "トロ", color: "#FFB6C1" },
+            { id: 13, name: "いくら", base_score: 400, category_large: "軍艦", category_medium: "たまご", attribute: "無し", color: "#FF4500" },
+            { id: 14, name: "ホタテ", base_score: 400, category_large: "にぎり", category_medium: "貝類", attribute: "無し", color: "#F5F5F5" },
+            { id: 15, name: "中トロ", base_score: 400, category_large: "にぎり", category_medium: "赤身", attribute: "トロ", color: "#FFA0AF" },
+            { id: 16, name: "ウニ軍艦", base_score: 800, category_large: "軍艦", category_medium: "たまご", attribute: "無し", color: "#FFA500" },
+            { id: 17, name: "大トロ", base_score: 800, category_large: "にぎり", category_medium: "赤身", attribute: "トロ", color: "#FF8296" }
+        ];
+
+        const canvas = document.getElementById('sushiCanvas');
+        const ctx = canvas.getContext('2d');
+        let onScreenSushi = [];
+        let userSlots = {};
+        let uiTimers = {};
+        let scores = JSON.parse(localStorage.getItem('sushi_scores') || '{}');
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 皿の色をスコアで決定
+        function getPlateColors(score) {
+            if (score >= 800) return { main: "#333", edge: "#FFD700" }; // 黒金
+            if (score >= 400) return { main: "#FFD700", edge: "#DAA520" }; // 金
+            if (score >= 200) return { main: "#C0C0C0", edge: "#808080" }; // 銀
+            return { main: "#F5F5F5", edge: "#CCC" }; // 白
+        }
+
+        function drawPixelSushi(s, x, y, size = 6, showName = true, targetCtx = ctx) {
+            const p = size;
+            const plate = getPlateColors(s.base_score);
+            targetCtx.save();
+            
+            // 皿の描画
+            targetCtx.fillStyle = plate.edge;
+            targetCtx.beginPath();
+            targetCtx.ellipse(x, y + p*2, p*6, p*3, 0, 0, Math.PI * 2);
+            targetCtx.fill();
+            targetCtx.fillStyle = plate.main;
+            targetCtx.beginPath();
+            targetCtx.ellipse(x, y + p*1.5, p*5.5, p*2.5, 0, 0, Math.PI * 2);
+            targetCtx.fill();
+
+            // ネタの描画
+            if(s.category_large === "にぎり") {
+                targetCtx.fillStyle = "#FFF"; targetCtx.fillRect(x-p*2, y-p, p*4, p*2.5);
+                targetCtx.fillStyle = s.color; targetCtx.fillRect(x-p*3, y-p*2.5, p*6, p*2.5);
+            } else if(s.category_large === "軍艦") {
+                targetCtx.fillStyle = "#111"; targetCtx.fillRect(x-p*3, y-p*3.5, p*6, p*5.5);
+                targetCtx.fillStyle = s.color; targetCtx.fillRect(x-p*2.5, y-p*2.5, p*5, p*2.5);
+            } else {
+                targetCtx.fillStyle = "#111"; targetCtx.fillRect(x-p*3, y-p*4, p*6, p*6);
+                targetCtx.fillStyle = "#FFF"; targetCtx.fillRect(x-p*2, y-p*3, p*4, p*4);
+                targetCtx.fillStyle = s.color; targetCtx.fillRect(x-p, y-p*2, p*2, p*2);
+            }
+
+            if(showName) {
+                targetCtx.font = "bold 20px 'DotGothic16'";
+                const textWidth = targetCtx.measureText(s.name).width;
+                targetCtx.fillStyle = "rgba(50, 50, 50, 0.8)";
+                targetCtx.fillRect(x - textWidth/2 - 8, y + p*8 - 18, textWidth + 16, 28);
+                targetCtx.fillStyle = "white"; targetCtx.textAlign = "center";
+                targetCtx.fillText(s.name, x, y + p*8);
+            }
+            targetCtx.restore();
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            onScreenSushi = onScreenSushi.filter(s => {
+                s.x -= s.speed;
+                drawPixelSushi(s, s.x, s.y);
+                return s.x > -100;
+            });
+            requestAnimationFrame(update);
+        }
+
+        function spawnSushi() {
+            const data = sushiData[Math.floor(Math.random() * sushiData.length)];
+            onScreenSushi.push({ ...data, x: canvas.width + 100, y: canvas.height * 0.15, speed: canvas.width / (30 * 60) });
+            setTimeout(spawnSushi, isDebug ? 4000 : 60000 + Math.random() * 30000);
+        }
+
+        ComfyJS.onCommand = (user, command) => {
+            if (command === "sushi" && onScreenSushi.length > 0) {
+                const grabbed = onScreenSushi.shift();
+                if (!userSlots[user]) userSlots[user] = [];
+                userSlots[user].push(grabbed);
+                updateUserUI(user);
+                if (userSlots[user].length === 3) {
+                    const result = calculateYaku(userSlots[user]);
+                    showResult(user, [...userSlots[user]], result);
+                    userSlots[user] = [];
+                }
+            }
+            if (command === "score") {
+                showUserTotalScore(user);
+            }
+        };
+
+        function showUserTotalScore(user) {
+            const total = (scores[user] || 0).toLocaleString();
+            const id = `score-${user}`;
+            let el = document.getElementById(id);
+            if (!el) {
+                el = document.createElement('div'); el.id = id; el.className = 'info-card';
+                document.getElementById('ui-layer').appendChild(el);
+            }
+            el.innerHTML = `<div><span class="text-bg">${user} の累計スコア</span></div>
+                            <div class="score-display">${total} pts</div>`;
+            
+            if(uiTimers[id]) clearTimeout(uiTimers[id]);
+            uiTimers[id] = setTimeout(() => { el.remove(); delete uiTimers[id]; }, 5000);
+        }
+
+        function updateUserUI(user) {
+            const id = `slot-${user}`;
+            let el = document.getElementById(id);
+            if (!el) {
+                el = document.createElement('div'); el.id = id; el.className = 'info-card';
+                document.getElementById('ui-layer').appendChild(el);
+            }
+            const hand = userSlots[user] || [];
+            el.innerHTML = `<div style="margin-bottom:15px;"><span class="text-bg">${user} が獲得中...</span></div>`;
+            const items = document.createElement('div'); items.className = 'slot-items';
+            for(let i=0; i<3; i++){
+                if(hand[i]) items.appendChild(createSushiElement(hand[i], 8));
+                else { const e = document.createElement('div'); e.className='circle-empty'; items.appendChild(e); }
+            }
+            el.appendChild(items);
+            if(uiTimers[id]) clearTimeout(uiTimers[id]);
+            uiTimers[id] = setTimeout(() => { el.remove(); delete uiTimers[id]; }, 5000);
+        }
+
+        function createSushiElement(s, size) {
+            const container = document.createElement('div'); container.className = 'slot-sushi-box';
+            const sCanvas = document.createElement('canvas'); sCanvas.width = size * 14; sCanvas.height = size * 12;
+            drawPixelSushi(s, (size*14)/2, (size*12)/2 - 5, size, false, sCanvas.getContext('2d'));
+            const n = document.createElement('div'); n.className = 'slot-sushi-name'; n.innerText = s.name; n.style.color = s.color;
+            container.appendChild(sCanvas); container.appendChild(n); return container;
+        }
+
+        function calculateYaku(hand) {
+            let base = hand.reduce((s, a) => s + a.base_score, 0);
+            let mults = [];
+            const meds = hand.map(h => h.category_medium);
+            const attrs = hand.map(h => h.attribute);
+            const larges = hand.map(h => h.category_large);
+            if (new Set(hand.map(h => h.id)).size === 1) mults.push({n:"三連単", m:5});
+            if (meds.every(v => v === "たまご")) mults.push({n:"海の宝石箱", m:4.0});
+            if (attrs.every(v => v === "トロ")) mults.push({n:"トロ三昧", m:3.0});
+            if (meds.every(v => v === "赤身")) mults.push({n:"赤身の鉄人", m:2.0});
+            if (new Set(larges).size === 1) mults.push({n:larges[0]+"統一", m:1.5});
+            let finalMult = mults.reduce((a, b) => a * b.m, 1);
+            return { score: Math.floor(base * finalMult), yakuName: mults.map(m => m.n).join("×") || "あがり！" };
+        }
+
+        function showResult(user, hand, result) {
+            const overlay = document.getElementById('result-overlay');
+            const sushiList = document.getElementById('res-sushi-container');
+            document.getElementById('res-user').innerHTML = `<span class="text-bg">🍣 ${user} の精算</span>`;
+            document.getElementById('res-score').innerHTML = `<span class="text-bg">${result.score.toLocaleString()} pts</span>`;
+            document.getElementById('res-yaku').innerHTML = `<span class="text-bg">${result.yakuName}</span>`;
+            sushiList.innerHTML = ""; hand.forEach(s => sushiList.appendChild(createSushiElement(s, 10)));
+            overlay.style.display = 'block'; setTimeout(() => overlay.style.display = 'none', 5000);
+            scores[user] = (scores[user] || 0) + result.score;
+            localStorage.setItem('sushi_scores', JSON.stringify(scores));
+        }
+
+        if (targetChannel) { ComfyJS.Init(targetChannel); spawnSushi(); update(); }
+        else alert("URLパラメータ ?channel=ユーザー名 を追加してください。");
+    </script>
+</body>
+</html>
