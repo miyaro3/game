@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Twitch Pixel Sushi Battle 攻略Wiki</title>
+    <style>
+        /* デザインベース: 提供されたfishguide.htmlを継承し、寿司バージョンに最適化 */
+        body { margin: 0; background: rgba(10, 10, 10, 0.9); color: white; font-family: 'Arial', 'Meiryo', sans-serif; padding: 20px; line-height: 1.6; }
+        .container { max-width: 900px; margin: auto; border: 2px solid #ff4444; border-radius: 15px; padding: 30px; background: rgba(30, 30, 30, 0.95); box-shadow: 0 0 30px rgba(255, 68, 68, 0.2); }
+        
+        h1 { color: #fff; text-align: center; border-bottom: 3px solid #ff4444; padding-bottom: 15px; margin-top: 0; font-size: 2.2em; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        h2 { color: #ffeb3b; border-left: 6px solid #ffeb3b; padding-left: 12px; font-size: 1.4em; margin-top: 30px; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-top: 20px; }
+        .mode-box { border: 1px solid #444; border-radius: 12px; padding: 20px; background: rgba(255,255,255,0.03); }
+        
+        .command-list { background: rgba(0, 0, 0, 0.4); border-radius: 8px; padding: 15px; margin-bottom: 15px; border: 1px solid #333; }
+        .cmd { color: #00ffcc; font-weight: bold; font-family: monospace; font-size: 1.1em; background: rgba(0,0,0,0.6); padding: 3px 8px; border-radius: 4px; }
+        .desc { display: block; margin-top: 8px; color: #ddd; font-size: 0.95em; }
+        
+        .highlight { color: #ff4444; font-weight: bold; }
+        .plate-table { width: 100%; border-collapse: collapse; margin-top: 10px; background: rgba(0,0,0,0.3); }
+        .plate-table th, .plate-table td { border: 1px solid #444; padding: 10px; text-align: center; }
+        .plate-table th { background: #222; color: #ffeb3b; }
+
+        /* 皿のサンプル色 */
+        .p-white { color: #fff; text-shadow: 0 0 5px #aaa; }
+        .p-silver { color: #C0C0C0; text-shadow: 0 0 5px #808080; }
+        .p-gold { color: #FFD700; text-shadow: 0 0 5px #DAA520; }
+        .p-black { color: #000; background: #FFD700; font-weight: bold; border-radius: 4px; padding: 0 5px; }
+
+        /* URL生成セクション */
+        .generator-box { margin-top: 40px; padding: 25px; background: #1a1a1a; border: 2px solid #444; border-radius: 15px; text-align: center; }
+        .generator-box input { padding: 12px; width: 280px; border-radius: 6px; border: 1px solid #444; background: #333; color: white; font-size: 16px; margin-right: 10px; }
+        .url-display { margin-top: 15px; background: #000; padding: 15px; border-radius: 6px; border: 1px dashed #666; font-family: monospace; word-break: break-all; color: #00ffcc; min-height: 24px; }
+        .copy-btn { margin-top: 20px; padding: 12px 40px; background: #ff4444; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 1.1em; }
+        .copy-btn:hover { background: #ff6666; transform: translateY(-2px); }
+        
+        ul { padding-left: 20px; }
+        li { margin-bottom: 8px; color: #ccc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍣 Twitch Pixel Sushi Battle 攻略ガイド</h1>
+
+        <div class="grid">
+            <div class="mode-box">
+                <h2>🎮 視聴者の遊び方</h2>
+                <div class="command-list">
+                    <p>
+                        <span class="cmd">!sushi</span>
+                        <span class="desc">画面上部を流れている寿司を1枚取得します。</span>
+                    </p>
+                </div>
+                <div class="command-list">
+                    <p>
+                        <span class="cmd">!score</span>
+                        <span class="desc">自分の現在の累計スコアを画面に表示します。</span>
+                    </p>
+                </div>
+                <p class="highlight">【基本ルール】</p>
+                <ul>
+                    <li>寿司を <span class="highlight">合計3枚</span> 集めると「あがり」となり、精算（スコア獲得）が行われます。</li>
+                    <li>3枚の組み合わせによって「役（コンボ）」が発生し、スコアが数倍に跳ね上がります。</li>
+                    <li>取得中のスロットは、最後の獲得から5秒経過すると非表示になります。</li>
+                </ul>
+            </div>
+
+            <div class="mode-box">
+                <h2>📊 皿の種類と役</h2>
+                <p>ネタの希少度（ベーススコア）によって皿の色が変わります。</p>
+                <table class="plate-table">
+                    <tr><th>皿の色</th><th>価格帯</th></tr>
+                    <tr><td class="p-white">白皿</td><td>100 pts</td></tr>
+                    <tr><td class="p-silver">銀皿</td><td>200 pts</td></tr>
+                    <tr><td class="p-gold">金皿</td><td>400 pts</td></tr>
+                    <tr><td class="p-black">黒金皿</td><td>800 pts</td></tr>
+                </table>
+
+                <h2>🏆 主な役一覧</h2>
+                <ul style="font-size: 0.9em;">
+                    <li><span class="highlight">三連単 (x5.0)</span>: 同じネタを3枚揃える</li>
+                    <li><span class="highlight">海の宝石箱 (x4.0)</span>: すべて「たまご系」で揃える</li>
+                    <li><span class="highlight">トロ三昧 (x3.0)</span>: すべて「トロ」属性で揃える</li>
+                    <li><span class="highlight">赤身の鉄人 (x2.0)</span>: すべて「赤身」で揃える</li>
+                    <li><span class="highlight">〇〇統一 (x1.5)</span>: にぎり/軍艦/巻物を統一</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="mode-box" style="margin-top: 25px;">
+            <h2>🎙️ 配信者向け OBS設定</h2>
+            <ul>
+                <li><strong>ソース追加:</strong> OBSのソース一覧から「ブラウザ」を選択。</li>
+                <li><strong>サイズ:</strong> 幅 <span class="highlight">1920</span> / 高さ <span class="highlight">1080</span>（または配信解像度に合わせてください）。</li>
+                <li><strong>背景:</strong> 透過状態で表示されるため、ゲーム画面の上に重ねて配置できます。</li>
+                <li><strong>デバッグ:</strong> URL末尾に <span class="cmd">&debug=true</span> を付けると、テスト用に寿司が頻繁に流れます。</li>
+            </ul>
+        </div>
+
+        <div class="generator-box">
+            <h2>🔗 配信用URL生成</h2>
+            <p style="color: #ccc; margin-bottom: 15px;">自分のTwitchチャンネル名を入力してURLを作成してください</p>
+            <input type="text" id="twitchId" placeholder="Twitch IDを入力 (例: miyaro)" oninput="generateUrl()">
+            <div class="url-display" id="generatedUrl">IDを入力してください...</div>
+            <button class="copy-btn" onclick="copyUrl()">URLをコピー</button>
+        </div>
+    </div>
+
+    <script>
+        function generateUrl() {
+            const twitchId = document.getElementById('twitchId').value.trim();
+            const display = document.getElementById('generatedUrl');
+            
+            if (twitchId === "") {
+                display.innerText = "IDを入力してください...";
+                return;
+            }
+            
+            // 現在のディレクトリにある sushi_game.html を指すように設定
+            const currentPath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+            const finalUrl = `${currentPath}/sushi_game.html?channel=${twitchId}`;
+            
+            display.innerText = finalUrl;
+        }
+
+        function copyUrl() {
+            const urlText = document.getElementById('generatedUrl').innerText;
+            if (urlText.includes("...")) return;
+
+            navigator.clipboard.writeText(urlText).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.innerText;
+                btn.innerText = "コピーしました！";
+                btn.style.background = "#00ffcc";
+                btn.style.color = "#000";
+                
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.style.background = "#ff4444";
+                    btn.style.color = "#fff";
+                }, 2000);
+            }).catch(err => {
+                alert('コピーに失敗しました。URLを手動で選択してコピーしてください。');
+            });
+        }
+    </script>
+</body>
+</html>
