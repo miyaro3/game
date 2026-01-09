@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Twitch Animal Chat Park - Battle Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #111; font-family: 'Courier New', Courier, monospace; cursor: pointer; }
+        #stage { width: 100vw; height: 100vh; position: relative; }
+
+        /* キャラクター */
+        .char-container { position: absolute; width: 40px; height: 40px; z-index: 10; transition: left 0.5s ease-out, top 0.5s ease-out; }
+        .moving { transition: none !important; } /* 移動中はスムーズな座標更新のためTransitionを切る */
+        
+        .pixel-body { width: 40px; height: 40px; display: grid; grid-template-columns: repeat(5, 8px); }
+        .px { width: 8px; height: 8px; }
+        .user-name { position: absolute; top: 45px; width: 120px; left: -40px; text-align: center; color: white; font-size: 12px; text-shadow: 2px 2px 0px #000; background: rgba(0,0,0,0.4); border-radius: 4px; }
+
+        /* ビン */
+        .bottle { position: absolute; width: 14px; height: 18px; background: #00f2ff; border: 2px solid #fff; border-radius: 2px; z-index: 15; box-shadow: 0 0 10px #00f2ff; }
+        .bottle::before { content: ''; position: absolute; top: -4px; left: 3px; width: 8px; height: 4px; background: #ddd; }
+
+        /* 陣地 */
+        .home-mark { position: absolute; width: 60px; height: 60px; border: 2px dashed #444; border-radius: 50%; transform: translate(-10px, -10px); transition: all 0.5s ease-out; }
+        .home-label { position: absolute; top: -20px; width: 100%; text-align: center; color: #00ff00; font-weight: bold; }
+
+        /* 勝利画面 */
+        #win-screen {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #000; border: 4px solid #00ff00; color: #00ff00; padding: 40px 80px;
+            font-size: 32px; font-weight: bold; z-index: 2000; text-align: center;
+            box-shadow: 0 0 50px rgba(0, 255, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="win-screen">勝者：<span id="winner-name"></span></div>
+    <div id="stage"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
+    <script>
+        const stage = document.getElementById('stage');
+        const winScreen = document.getElementById('win-screen');
+        const winnerName = document.getElementById('winner-name');
+        
+        const RADIUS = 150;
+        const SPEED = 15 / 60; // 15px/sec
+        
+        let centerX = window.innerWidth / 2;
+        let centerY = window.innerHeight / 2;
+        let players = [];
+
+        // 画面リサイズ対応
+        window.addEventListener('resize', () => {
+            centerX = window.innerWidth / 2;
+            centerY = window.innerHeight / 2;
+            repositionAll();
+        });
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('channel')) ComfyJS.Init(params.get('channel'));
+
+        ComfyJS.onCommand = (user, command, message, flags, extra) => {
+            const cmd = command.toLowerCase();
+            if (cmd === "join") {
+                addPlayer(user);
+                return;
+            }
+            const player = players.find(p => p.name.toLowerCase() === user.toLowerCase());
+            if (!player) return;
+
+            if (!isNaN(cmd)) {
+                const targetIdx = parseInt(cmd) - 1;
+                const targetPlayer = players[targetIdx];
+                if (targetPlayer && targetIdx !== player.index && targetPlayer.bottlesAtHome > 0) {
+                    player.target = targetPlayer;
+                    player.state = 'hunting';
+                }
+            }
+        };
+
+        function addPlayer(name) {
+            if (players.find(p => p.name === name)) return;
+            
+            const p = {
+                name: name, index: 0,
+                x: centerX, y: centerY, homeX: 0, homeY: 0,
+                bottlesAtHome: 1, hasBottle: false,
+                state: 'idle', target: null,
+                color: `hsl(${Math.random() * 360}, 80%, 60%)`,
+                el: null, homeMarkEl: null, homeBottleEl: null, carrierBottleEl: null
+            };
+
+            players.push(p);
+            repositionAll();
+            renderNewPlayer(p);
+        }
+
+        // 全員の陣地と待機位置を再計算
+        function repositionAll() {
+            const count = players.length;
+            players.forEach((p, i) => {
+                p.index = i;
+                const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
+                p.homeX = centerX + RADIUS * Math.cos(angle) - 20;
+                p.homeY = centerY + RADIUS * Math.sin(angle) - 20;
+                
+                if (p.state === 'idle') {
+                    p.x = p.homeX;
+                    p.y = p.homeY;
+                }
+
+                // 陣地の位置を更新
+                if (p.homeMarkEl) {
+                    p.homeMarkEl.style.left = p.homeX + "px";
+                    p.homeMarkEl.style.top = p.homeY + "px";
+                    p.homeMarkEl.querySelector('.home-label').innerText = `!${i + 1}`;
+                }
+            });
+        }
+
+        function renderNewPlayer(p) {
+            // 陣地マーク
+            const home = document.createElement('div');
+            home.className = 'home-mark';
+            home.innerHTML = `<div class="home-label">!${p.index + 1}</div>`;
+            stage.appendChild(home);
+            p.homeMarkEl = home;
+
+            // キャラクター
+            const container = document.createElement('div');
+            container.className = 'char-container';
+            const body = document.createElement('div');
+            body.className = 'pixel-body';
+            for(let i=0; i<25; i++) {
+                const px = document.createElement('div');
+                px.className = 'px';
+                px.style.backgroundColor = ([6,7,8,11,12,13,16,17,18,21,23].includes(i)) ? p.color : 'transparent';
+                body.appendChild(px);
+            }
+            
+            // 所持しているビン
+            const carrierBottle = document.createElement('div');
+            carrierBottle.className = 'bottle';
+            carrierBottle.style.display = 'none';
+            carrierBottle.style.top = '-25px';
+            carrierBottle.style.left = '13px';
+            
+            const nameTag = document.createElement('div');
+            nameTag.className = 'user-name';
+            nameTag.innerText = p.name;
+
+            container.appendChild(carrierBottle);
+            container.appendChild(body);
+            container.appendChild(nameTag);
+            stage.appendChild(container);
+            p.el = container;
+            p.carrierBottleEl = carrierBottle;
+
+            // 陣地にあるビン
+            const b = document.createElement('div');
+            b.className = 'bottle';
+            stage.appendChild(b);
+            p.homeBottleEl = b;
+
+            repositionAll(); // 初回描画位置の確定
+        }
+
+        function loop() {
+            players.forEach(p => {
+                if (p.state !== 'idle') {
+                    p.el.classList.add('moving');
+                    let tx = p.homeX, ty = p.homeY;
+
+                    if (p.state === 'hunting' && p.target) {
+                        tx = p.target.homeX; ty = p.target.homeY;
+                        if (p.target.bottlesAtHome <= 0) {
+                            p.state = 'returning';
+                            p.target = null;
+                        } else if (getDist(p.x, p.y, tx, ty) < 5) {
+                            p.target.bottlesAtHome--;
+                            p.hasBottle = true;
+                            p.state = 'returning';
+                        }
+                    } else if (p.state === 'returning') {
+                        if (getDist(p.x, p.y, p.homeX, p.homeY) < 5) {
+                            if (p.hasBottle) {
+                                p.bottlesAtHome++;
+                                p.hasBottle = false;
+                                checkWinner(p);
+                            }
+                            p.state = 'idle';
+                            p.el.classList.remove('moving');
+                        }
+                    }
+                    moveTowards(p, tx, ty);
+                }
+
+                // 位置反映
+                p.el.style.left = p.x + "px";
+                p.el.style.top = p.y + "px";
+                
+                // ビンの表示
+                p.homeBottleEl.style.display = p.bottlesAtHome > 0 ? 'block' : 'none';
+                p.homeBottleEl.style.left = (p.homeX + 13) + "px";
+                p.homeBottleEl.style.top = (p.homeY + 10) + "px";
+                p.carrierBottleEl.style.display = p.hasBottle ? 'block' : 'none';
+            });
+            requestAnimationFrame(loop);
+        }
+
+        function moveTowards(p, tx, ty) {
+            const dx = tx - p.x;
+            const dy = ty - p.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > 0) {
+                p.x += (dx / dist) * SPEED;
+                p.y += (dy / dist) * SPEED;
+            }
+        }
+
+        function getDist(x1, y1, x2, y2) {
+            return Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+        }
+
+        function checkWinner(p) {
+            if (p.bottlesAtHome >= 2) {
+                winnerName.innerText = p.name;
+                winScreen.style.display = 'block';
+                setTimeout(() => {
+                    location.reload();
+                }, 5000);
+            }
+        }
+
+        loop();
+    </script>
+</body>
+</html>
