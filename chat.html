@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Animal Chat Park - Master Full Edition</title>
+    <title>Twitch Animal Chat Park - Dynamic Lifetime Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background: transparent; font-family: 'Arial', sans-serif; cursor: pointer; }
         #stage { width: 100vw; height: 100vh; position: relative; }
@@ -10,6 +10,7 @@
         .char-container {
             position: absolute; width: 50px; height: 50px;
             display: flex; flex-direction: column; align-items: center; z-index: 10;
+            transition: opacity 1s;
         }
 
         .bubble {
@@ -49,10 +50,13 @@
         const STAGE_HEIGHT = window.innerHeight;
         const CHAR_SIZE = 50;
         
+        // 寿命設定（デフォルト15分）
+        let globalLifetimeMs = 15 * 60 * 1000; 
+        
         let users = {};
         let fireballs = [];
         let cleanBar = { x: -100, active: false, speed: 10 };
-        let testUserCount = 0; // サンプルキャラ用カウンター
+        let testUserCount = 0;
 
         const SHAPES = [
             ["0100000010","1110000111","1111111111","1121111211","1111331111","1111111111","0111111110","0011111100","0011001100","0000000000"],
@@ -67,21 +71,37 @@
 
         ComfyJS.onCommand = (user, command, message, flags, extra) => {
             const userId = user.toLowerCase();
+            
+            // !life コマンド (配信者またはモデレーターのみ)
+            if (command === "life" && (flags.broadcaster || flags.mod)) {
+                const mins = parseInt(message.trim());
+                if (!isNaN(mins)) {
+                    globalLifetimeMs = mins * 60 * 1000;
+                    // 全員の寿命タイマーを即時更新
+                    Object.keys(users).forEach(id => resetLifetime(users[id], id));
+                    console.log(`Global lifetime set to ${mins} minutes.`);
+                }
+                return;
+            }
+
             if (!users[userId]) spawnUser(user);
+            resetLifetime(users[userId], userId);
             handleAction(users[userId], "!" + command, message, userId);
         };
 
         ComfyJS.onChat = (user, message) => {
-            if (message.startsWith("!")) return;
             const userId = user.toLowerCase();
             if (!users[userId]) spawnUser(user);
+            resetLifetime(users[userId], userId);
+            if (message.startsWith("!")) return;
             showBubble(users[userId], message);
         };
 
-        // 画面クリックで連番のテストキャラを作成
         document.body.addEventListener('click', (e) => {
             const idStr = testUserCount.toString().padStart(2, '0');
-            spawnUser("Test_" + idStr, e.clientX-25, e.clientY-25);
+            const name = "Test_" + idStr;
+            spawnUser(name, e.clientX-25, e.clientY-25);
+            resetLifetime(users[name.toLowerCase()], name.toLowerCase());
             testUserCount++;
         });
 
@@ -117,8 +137,27 @@
                 x: x || Math.random() * (STAGE_WIDTH - CHAR_SIZE),
                 y: y || Math.random() * (STAGE_HEIGHT - CHAR_SIZE),
                 vx: 0, vy: 0, dir: 1, state: 'idle', stateTimer: 50, 
-                busy: false, falling: false, targetX: null, targetY: null
+                busy: false, falling: false, targetX: null, targetY: null,
+                dieTimer: null
             };
+        }
+
+        function resetLifetime(u, userId) {
+            if (u.dieTimer) clearTimeout(u.dieTimer);
+            u.el.style.opacity = '1'; // 寿命が更新されたら不透明に戻す
+
+            // globalLifetimeMs が 0 の場合はタイマーをセットしない（消えない）
+            if (globalLifetimeMs <= 0) return;
+
+            u.dieTimer = setTimeout(() => {
+                if (u.el) {
+                    u.el.style.opacity = '0';
+                    setTimeout(() => {
+                        if (u.el) u.el.remove();
+                        delete users[userId];
+                    }, 1000);
+                }
+            }, globalLifetimeMs);
         }
 
         function handleAction(u, cmd, message, userId) {
@@ -131,13 +170,11 @@
             else if (cmd === "!right") { u.vx = 20; u.dir = 1; u.falling = false; u.busy = false; }
             else if (cmd === "!shake") { u.inner.classList.add('anim-shake'); setTimeout(()=>u.inner.classList.remove('anim-shake'), 2000); }
             else if (cmd === "!dance") { u.inner.classList.add('anim-dance'); setTimeout(()=>u.inner.classList.remove('anim-dance'), 3000); }
-            
             else if (cmd === "!set") {
                 const userList = Object.values(users);
                 const spacing = STAGE_WIDTH / (userList.length + 1);
                 userList.forEach((char, index) => {
-                    char.busy = true;
-                    char.falling = false;
+                    char.busy = true; char.falling = false;
                     char.targetX = spacing * (index + 1) - (CHAR_SIZE / 2);
                     char.targetY = STAGE_HEIGHT - CHAR_SIZE - 20;
                     if(char.setTimer) clearTimeout(char.setTimer);
@@ -146,7 +183,6 @@
                     }, 5000);
                 });
             }
-
             else if (cmd === "!bomb") {
                 u.inner.classList.add('anim-bomb');
                 Object.values(users).forEach(target => {
@@ -161,7 +197,6 @@
                 });
                 setTimeout(() => { if(u.el) u.el.remove(); delete users[userId]; }, 600);
             }
-
             else if (cmd === "!battle") {
                 const targetName = message.trim().toLowerCase();
                 const target = users[targetName];
@@ -178,37 +213,27 @@
                     battleMove();
                 }
             }
-
             else if (cmd === "!clean") {
                 cleanBar.active = true; cleanBar.x = -100;
                 document.getElementById('clean-bar').style.display = 'block';
             }
-
             else if (cmd === "!fire") {
                 let vxf, vyf;
                 const targetName = message.trim().toLowerCase();
                 const target = users[targetName];
-
                 if (target && target !== u) {
-                    // 特定の相手を狙う
-                    const dx = target.x - u.x;
-                    const dy = target.y - u.y;
+                    const dx = target.x - u.x; const dy = target.y - u.y;
                     const dist = Math.sqrt(dx*dx + dy*dy);
-                    vxf = (dx / dist) * 12;
-                    vyf = (dy / dist) * 12;
+                    vxf = (dx / dist) * 12; vyf = (dy / dist) * 12;
                 } else {
-                    // ID指定がない場合は360度ランダム
                     const angle = Math.random() * Math.PI * 2;
-                    vxf = Math.cos(angle) * 12;
-                    vyf = Math.sin(angle) * 12;
+                    vxf = Math.cos(angle) * 12; vyf = Math.sin(angle) * 12;
                 }
-
                 const fb = document.createElement('div');
                 fb.className = 'fireball'; fb.innerText = "🔥";
                 document.getElementById('stage').appendChild(fb);
                 fireballs.push({ el: fb, x: u.x + (vxf * 4), y: u.y + (vyf * 4), vx: vxf, vy: vyf, life: 180, owner: u });
             }
-
             else if (cmd === "!fall") {
                 Object.values(users).forEach(target => {
                     target.vy = 25; target.falling = true; target.busy = false;
@@ -238,8 +263,7 @@
                     if (u === fb.owner) return;
                     const dx = u.x - fb.x; const dy = u.y - fb.y;
                     if (Math.sqrt(dx*dx + dy*dy) < 40) {
-                        u.vx = fb.vx * 1.5; u.vy = fb.vy * 1.5 - 5; fb.life = 0;
-                        u.busy = false;
+                        u.vx = fb.vx * 1.5; u.vy = fb.vy * 1.5 - 5; fb.life = 0; u.busy = false;
                     }
                 });
                 if (fb.life <= 0) fb.el.remove();
@@ -249,10 +273,8 @@
             const list = Object.values(users);
             list.forEach((u, i) => {
                 if (cleanBar.active && u.x < cleanBar.x + 40) { u.x = cleanBar.x + 40; u.vx = cleanBar.speed; u.busy = false; }
-
                 if (u.busy && u.targetX !== null) {
-                    const dx = u.targetX - u.x;
-                    const dy = u.targetY - u.y;
+                    const dx = u.targetX - u.x; const dy = u.targetY - u.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist > 2) { u.vx = dx * 0.1; u.vy = dy * 0.1; } 
                     else { u.x = u.targetX; u.y = u.targetY; u.vx = 0; u.vy = 0; }
@@ -264,16 +286,12 @@
                         if (u.state === 'walk') { u.vx = (Math.random()-0.5)*3; u.vy = (Math.random()-0.5)*3; }
                     }
                 }
-
                 u.x += u.vx; u.y += u.vy;
                 if (!u.busy) { u.vx *= 0.96; u.vy *= 0.96; }
-
                 if (u.x < 0) { u.x = 0; u.vx *= -1; }
                 if (u.x > STAGE_WIDTH - CHAR_SIZE) { u.x = STAGE_WIDTH - CHAR_SIZE; u.vx *= -1; }
                 if (u.y < 0) { u.y = 0; u.vy *= -1; }
-                if (u.y > STAGE_HEIGHT - CHAR_SIZE) { 
-                    u.y = STAGE_HEIGHT - CHAR_SIZE; u.vy *= -0.4; u.falling = false;
-                }
+                if (u.y > STAGE_HEIGHT - CHAR_SIZE) { u.y = STAGE_HEIGHT - CHAR_SIZE; u.vy *= -0.4; u.falling = false; }
 
                 for (let j = i + 1; j < list.length; j++) {
                     const o = list[j];
@@ -283,13 +301,9 @@
                         const angle = Math.atan2(dy, dx);
                         const push = (CHAR_SIZE - dist) * 0.2;
                         let bounce = 1.0;
-                        if (u.busy || o.busy) { 
-                            if(u.targetX === null) { bounce = Math.random() > 0.5 ? 4.0 : -2.0; u.busy = false; o.busy = false; }
-                        }
-                        u.vx -= Math.cos(angle) * push * bounce;
-                        u.vy -= Math.sin(angle) * push * bounce;
-                        o.vx += Math.cos(angle) * push * bounce;
-                        o.vy += Math.sin(angle) * push * bounce;
+                        if (u.busy || o.busy) { if(u.targetX === null) { bounce = Math.random() > 0.5 ? 4.0 : -2.0; u.busy = false; o.busy = false; } }
+                        u.vx -= Math.cos(angle) * push * bounce; u.vy -= Math.sin(angle) * push * bounce;
+                        o.vx += Math.cos(angle) * push * bounce; o.vy += Math.sin(angle) * push * bounce;
                     }
                 }
                 u.el.style.left = u.x + "px"; u.el.style.top = u.y + "px";
