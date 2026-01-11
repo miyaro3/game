@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>ミヤロクイズ ガイド</title>
+    <title>ミヤロクイズ ガイド - 最新版</title>
     <style>
         body { margin: 0; background: rgba(0, 0, 0, 0.8); color: white; font-family: 'Arial', 'Meiryo', sans-serif; padding: 20px; }
         .container { max-width: 800px; margin: auto; border: 2px solid #ffee00; border-radius: 15px; padding: 20px; background: rgba(20, 20, 20, 0.9); box-shadow: 0 0 20px rgba(255, 238, 0, 0.3); }
@@ -59,10 +59,16 @@
             <div class="mode-box">
                 <h2>🎙️ 配信者・Modコマンド</h2>
                 <div class="command-list">
-                    <p><span class="cmd">!quiz [問題文]</span><br><span class="desc">クイズモードを開始（必須）</span></p>
-                    <p><span class="cmd">!bet [問題文]</span><br><span class="desc">ギャンブルモードを開始（必須）</span></p>
-                    <p><span class="cmd">!close [秒数]</span><br><span class="desc">回答を締め切るタイマー</span></p>
-                    <p><span class="cmd">!answer [番号]</span><br><span class="desc">正解発表＆ポイント配布</span></p>
+                    <p><span class="cmd">!quiz [問題文]</span><br><span class="desc">クイズモードを開始</span></p>
+                    <p><span class="cmd">!bet [問題文]</span><br><span class="desc">ギャンブルモードを開始</span></p>
+                    <p><span class="cmd">!close [秒数]</span><br><span class="desc">回答を締め切るタイマーを開始</span></p>
+                    <p><span class="cmd">!answer [1〜4]</span><br><span class="desc">正解発表。※1-4以外は無効</span></p>
+                </div>
+                
+                <h2>💰 ポイント管理</h2>
+                <div class="command-list">
+                    <p><span class="cmd">!setpoint [数値]</span><br><span class="desc">出題中の正解配当ptを変更</span></p>
+                    <p><span class="cmd">!givepoint [数値] (名前)</span><br><span class="desc">全員または個人にptを付与</span></p>
                 </div>
                 <p style="font-size: 0.85em; color: #aaa;">※ゲーム中に別のゲームを開始すると、賭けていたポイントは自動で全員に返金されます。</p>
             </div>
