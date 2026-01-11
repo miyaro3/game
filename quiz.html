@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Quiz & Bet - Unified Edition</title>
+    <title>Twitch Quiz & Bet - Ultimate Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background: transparent; font-family: 'Arial', 'Meiryo', sans-serif; color: white; }
         #stage { width: 852px; height: 480px; position: relative; display: flex; }
@@ -42,7 +42,8 @@
     <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
     <script>
         const CONFIG = { DEFAULT_POINTS: 100, DEFAULT_BET: 100, CAT_SHAPE: ["000000000000", "010000000100", "011000001100", "111111111104", "112111121104", "111133111144", "111111111140", "011111111100", "001100011000", "000000000000"].join(""), COLORS: { EYE: "#000000", DETAIL: "#ffb7c5" } };
-        let scores = {}, quizActive = false, gameMode = "quiz", currentQuizPoints = CONFIG.DEFAULT_POINTS, participants = {}, currentQuestionText = "", totalPool = 0, closeTimerInterval = null;
+        let scores = {}, quizActive = false, gameMode = "quiz", currentQuizPoints = CONFIG.DEFAULT_POINTS, payoutOdds = 1.2, participants = {}, currentQuestionText = "", totalPool = 0, closeTimerInterval = null;
+        
         const params = new URLSearchParams(window.location.search);
         const channel = params.get('channel');
         if (channel) ComfyJS.Init(channel);
@@ -54,7 +55,7 @@
 
         ComfyJS.onCommand = (user, command, message, flags, extra) => {
             if (flags.broadcaster || flags.mod) {
-                // クイズ・ベット開始
+                // ゲーム開始
                 if (command === "quiz" || command === "bet") {
                     if (!message || message.trim() === "") {
                         document.getElementById('question-box').innerHTML = `<div style="color: #ff4444;">エラー: 問題文を入力してください</div>`;
@@ -72,10 +73,10 @@
                     }
                 }
 
-                // 締め切りタイマー
+                // 締め切り
                 if (command === "close") startCloseTimer(parseInt(message) || 30);
 
-                // 【新規】ポイント配布 (!givepoint [数値] [名前])
+                // ポイント配布
                 if (command === "givepoint") {
                     const parts = message.trim().split(/\s+/);
                     const amount = parseInt(parts[0]);
@@ -84,19 +85,27 @@
                         if (target) {
                             scores[target] = (scores[target] || 0) + amount;
                         } else {
-                            // 全参加者に配布
                             Object.keys(participants).forEach(id => scores[id] = (scores[id] || 0) + amount);
                         }
                         updateScoreBoard();
                     }
                 }
 
-                // 【新規】正解ポイント設定 (!setpoint [数値])
+                // 正解報酬設定
                 if (command === "setpoint") {
                     const amount = parseInt(message.trim());
                     if (!isNaN(amount)) {
                         currentQuizPoints = amount;
-                        if (quizActive) updateStatusDisplay(); // 出題中の表示を更新
+                        if (quizActive) updateStatusDisplay();
+                    }
+                }
+
+                // 配当倍率設定
+                if (command === "odds") {
+                    const val = parseFloat(message.trim());
+                    if (!isNaN(val) && val > 0) {
+                        payoutOdds = val;
+                        if (quizActive) updateStatusDisplay();
                     }
                 }
             }
@@ -122,7 +131,9 @@
         }
 
         function updateStatusDisplay(footerHtml = "") {
-            const modeName = gameMode === "quiz" ? `Quiz (${currentQuizPoints}pt)` : `Bet (Pool: ${totalPool})`;
+            const modeName = gameMode === "quiz" 
+                ? `Quiz (${currentQuizPoints}pt)` 
+                : `Bet (Pool: ${totalPool} / Odds: x${payoutOdds})`;
             document.getElementById('question-box').innerHTML = `<div style="font-size:0.7em; color:#aaa;">[${modeName}]</div><div>Q: ${currentQuestionText}</div>${footerHtml}`;
         }
 
@@ -156,18 +167,25 @@
 
             let winners = [], winB = 0;
             Object.keys(participants).forEach(id => { if(participants[id].zoneId === correctAns) { winners.push(id); winB += participants[id].betAmount; } });
+            
             winners.forEach(id => {
-                let amt = (gameMode === "quiz") ? currentQuizPoints : Math.floor((participants[id].betAmount / winB) * totalPool);
-                scores[id] = (scores[id] || 0) + amt; participants[id].el.classList.add('happy-jump');
+                // Betモード時、配当倍率(payoutOdds)を適用し小数点切り捨て
+                let amt = (gameMode === "quiz") 
+                    ? currentQuizPoints 
+                    : Math.floor(((participants[id].betAmount / winB) * totalPool) * payoutOdds);
+                scores[id] = (scores[id] || 0) + amt; 
+                participants[id].el.classList.add('happy-jump');
             });
+
             Object.keys(participants).forEach(id => { if(participants[id].zoneId !== correctAns) participants[id].el.classList.add('sink-down'); });
             
-            const modeName = gameMode === "quiz" ? `Quiz (${currentQuizPoints}pt)` : `Bet (Pool: ${totalPool})`;
-            document.getElementById('question-box').innerHTML = `
-                <div style="font-size:0.7em; color:#aaa;">[${modeName}]</div>
-                <div>Q: ${txt}</div>
-                <div style="color: #ffee00; margin-top: 5px;">正解 [ ${correctAns} ] ${gameMode === 'bet' ? '配当 ' + totalPool + 'pt' : ''}</div>
-            `;
+            const modeName = gameMode === "quiz" ? `Quiz (${currentQuizPoints}pt)` : `Bet (Pool: ${totalPool} / Odds: x${payoutOdds})`;
+// 修正後
+document.getElementById('question-box').innerHTML = `
+    <div style="font-size:0.7em; color:#aaa;">[${modeName}]</div>
+    <div>Q: ${txt}</div>
+    <div style="color: #ffee00; margin-top: 5px;">正解 [ ${correctAns} ]</div>
+`;
             updateScoreBoard();
         }
 
