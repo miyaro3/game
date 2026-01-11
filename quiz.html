@@ -61,14 +61,36 @@
                     }
                     gameMode = command; totalPool = 0; startNewGame(message);
                 }
-                if (command === "answer" && currentQuestionText) { if(closeTimerInterval) clearInterval(closeTimerInterval); endGame(message); }
+// 修正後
+if (command === "answer" && currentQuestionText) {
+    // 入力された文字（message）が "1", "2", "3", "4" のいずれかであるかチェック
+    if (["1", "2", "3", "4"].includes(message.trim())) {
+        if(closeTimerInterval) clearInterval(closeTimerInterval); 
+        endGame(message.trim()); 
+    } else {
+        // 1〜4以外が入力された場合は何もしない（または配信者向けに警告を出すならここ）
+        console.log("正解番号は 1〜4 で指定してください。");
+    }
+}
                 if (command === "close") startCloseTimer(parseInt(message) || 30);
-                if (command === "point") {
-                    const parts = message.trim().split(/\s+/); const amount = parseInt(parts[0]);
+if (command === "point") {
+                    const parts = message.trim().split(/\s+/);
+                    const amount = parseInt(parts[0]);
                     if (!isNaN(amount)) {
                         const target = parts[1] ? parts[1].toLowerCase() : null;
-                        if (target) scores[target] = (scores[target] || 0) + amount;
-                        else Object.keys(participants).forEach(id => scores[id] = (scores[id] || 0) + amount);
+                        
+                        if (target) {
+                            // ユーザー名の指定がある場合：その人のスコアを増減（従来通り）
+                            scores[target] = (scores[target] || 0) + amount;
+                        } else if (quizActive && gameMode === "quiz") {
+                            // ユーザー名がなく、クイズ出題中の場合：その回の正解ポイントを上書き
+                            currentQuizPoints = amount;
+                            // 画面上の表示（Quiz (100pt) など）を更新
+                            updateStatusDisplay();
+                        } else {
+                            // それ以外（全員配布など、これまでの挙動を残す場合はここ）
+                            Object.keys(participants).forEach(id => scores[id] = (scores[id] || 0) + amount);
+                        }
                         updateScoreBoard();
                     }
                 }
