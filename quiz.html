@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Quiz & Bet - Final Stabilized</title>
+    <title>Twitch Quiz & Bet - Unified Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background: transparent; font-family: 'Arial', 'Meiryo', sans-serif; color: white; }
         #stage { width: 852px; height: 480px; position: relative; display: flex; }
@@ -54,6 +54,7 @@
 
         ComfyJS.onCommand = (user, command, message, flags, extra) => {
             if (flags.broadcaster || flags.mod) {
+                // クイズ・ベット開始
                 if (command === "quiz" || command === "bet") {
                     if (!message || message.trim() === "") {
                         document.getElementById('question-box').innerHTML = `<div style="color: #ff4444;">エラー: 問題文を入力してください</div>`;
@@ -61,40 +62,46 @@
                     }
                     gameMode = command; totalPool = 0; startNewGame(message);
                 }
-// 修正後
-if (command === "answer" && currentQuestionText) {
-    // 入力された文字（message）が "1", "2", "3", "4" のいずれかであるかチェック
-    if (["1", "2", "3", "4"].includes(message.trim())) {
-        if(closeTimerInterval) clearInterval(closeTimerInterval); 
-        endGame(message.trim()); 
-    } else {
-        // 1〜4以外が入力された場合は何もしない（または配信者向けに警告を出すならここ）
-        console.log("正解番号は 1〜4 で指定してください。");
-    }
-}
+
+                // 正解発表 (1-4のみ許可)
+                if (command === "answer" && currentQuestionText) {
+                    const ans = message.trim();
+                    if (["1", "2", "3", "4"].includes(ans)) {
+                        if(closeTimerInterval) clearInterval(closeTimerInterval); 
+                        endGame(ans);
+                    }
+                }
+
+                // 締め切りタイマー
                 if (command === "close") startCloseTimer(parseInt(message) || 30);
-if (command === "point") {
+
+                // 【新規】ポイント配布 (!givepoint [数値] [名前])
+                if (command === "givepoint") {
                     const parts = message.trim().split(/\s+/);
                     const amount = parseInt(parts[0]);
                     if (!isNaN(amount)) {
                         const target = parts[1] ? parts[1].toLowerCase() : null;
-                        
                         if (target) {
-                            // ユーザー名の指定がある場合：その人のスコアを増減（従来通り）
                             scores[target] = (scores[target] || 0) + amount;
-                        } else if (quizActive && gameMode === "quiz") {
-                            // ユーザー名がなく、クイズ出題中の場合：その回の正解ポイントを上書き
-                            currentQuizPoints = amount;
-                            // 画面上の表示（Quiz (100pt) など）を更新
-                            updateStatusDisplay();
                         } else {
-                            // それ以外（全員配布など、これまでの挙動を残す場合はここ）
+                            // 全参加者に配布
                             Object.keys(participants).forEach(id => scores[id] = (scores[id] || 0) + amount);
                         }
                         updateScoreBoard();
                     }
                 }
+
+                // 【新規】正解ポイント設定 (!setpoint [数値])
+                if (command === "setpoint") {
+                    const amount = parseInt(message.trim());
+                    if (!isNaN(amount)) {
+                        currentQuizPoints = amount;
+                        if (quizActive) updateStatusDisplay(); // 出題中の表示を更新
+                    }
+                }
             }
+
+            // 参加者の移動
             if (quizActive && ["1", "2", "3", "4"].includes(command)) {
                 let isDefault = false, val = parseInt(message.trim());
                 if (isNaN(val) || val <= 0) { val = CONFIG.DEFAULT_BET; isDefault = true; }
@@ -104,26 +111,14 @@ if (command === "point") {
 
         function startNewGame(text) {
             if (closeTimerInterval) clearInterval(closeTimerInterval);
-            
-            // 修正箇所：quizActive（出題中）だった場合のみ、賭け金を返金する
             if (quizActive) {
                 Object.keys(participants).forEach(id => { 
-                    if (participants[id].betAmount > 0) {
-                        scores[id] = (scores[id] || 0) + participants[id].betAmount;
-                    }
+                    if (participants[id].betAmount > 0) scores[id] = (scores[id] || 0) + participants[id].betAmount;
                 });
             }
-
-            // 前回のゲームの猫を画面から消去
-            Object.keys(participants).forEach(id => {
-                if (participants[id].el) participants[id].el.remove();
-            });
-
-            participants = {}; 
-            quizActive = true; 
-            currentQuestionText = text;
-            updateStatusDisplay(); 
-            updateScoreBoard();
+            Object.keys(participants).forEach(id => { if (participants[id].el) participants[id].el.remove(); });
+            participants = {}; quizActive = true; currentQuestionText = text;
+            updateStatusDisplay(); updateScoreBoard();
         }
 
         function updateStatusDisplay(footerHtml = "") {
@@ -173,7 +168,6 @@ if (command === "point") {
                 <div>Q: ${txt}</div>
                 <div style="color: #ffee00; margin-top: 5px;">正解 [ ${correctAns} ] ${gameMode === 'bet' ? '配当 ' + totalPool + 'pt' : ''}</div>
             `;
-            
             updateScoreBoard();
         }
 
