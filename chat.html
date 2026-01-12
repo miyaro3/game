@@ -404,7 +404,7 @@ function stopEnding() {
                     if (dist > 1) {
                         // 10秒程度かけるために、速度係数を 0.1 から 0.02 程度まで下げます
                         // これにより、滑らかに減速しながら定位置に収まります
-                        u.vx = dx * 0.01; 
+                        u.vx = dx * 0.02; 
                         u.vy = dy * 0.02;
                     } else {
                         u.x = u.targetX; u.y = u.targetY; u.vx = 0; u.vy = 0;
@@ -446,4 +446,5 @@ function stopEnding() {
         loop();
     </script>
 </body>
+
 </html>
