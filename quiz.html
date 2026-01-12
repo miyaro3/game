@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Quiz & Bet - Ultimate Edition</title>
+    <title>Twitch Quiz & Bet - Unified Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background: transparent; font-family: 'Arial', 'Meiryo', sans-serif; color: white; }
         #stage { width: 852px; height: 480px; position: relative; display: flex; }
@@ -41,8 +41,9 @@
 
     <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
     <script>
-        const CONFIG = { DEFAULT_POINTS: 100, DEFAULT_BET: 100, CAT_SHAPE: ["000000000000", "010000000100", "011000001100", "111111111104", "112111121104", "111133111144", "111111111140", "011111111100", "001100011000", "000000000000"].join(""), COLORS: { EYE: "#000000", DETAIL: "#ffb7c5" } };
-        let scores = {}, quizActive = false, gameMode = "quiz", currentQuizPoints = CONFIG.DEFAULT_POINTS, payoutOdds = 1.2, participants = {}, currentQuestionText = "", totalPool = 0, closeTimerInterval = null;
+        const CONFIG = { DEFAULT_BET: 100, CAT_SHAPE: ["000000000000", "010000000100", "011000001100", "111111111104", "112111121104", "111133111144", "111111111140", "011111111100", "001100011000", "000000000000"].join(""), COLORS: { EYE: "#000000", DETAIL: "#ffb7c5" } };
+        
+        let scores = {}, quizActive = false, gameMode = "quiz", currentQuizPoints = 100, payoutOdds = 1.2, initialUserPoint = 100, participants = {}, currentQuestionText = "", totalPool = 0, closeTimerInterval = null;
         
         const params = new URLSearchParams(window.location.search);
         const channel = params.get('channel');
@@ -55,7 +56,6 @@
 
         ComfyJS.onCommand = (user, command, message, flags, extra) => {
             if (flags.broadcaster || flags.mod) {
-                // ゲーム開始
                 if (command === "quiz" || command === "bet") {
                     if (!message || message.trim() === "") {
                         document.getElementById('question-box').innerHTML = `<div style="color: #ff4444;">エラー: 問題文を入力してください</div>`;
@@ -64,7 +64,6 @@
                     gameMode = command; totalPool = 0; startNewGame(message);
                 }
 
-                // 正解発表 (1-4のみ許可)
                 if (command === "answer" && currentQuestionText) {
                     const ans = message.trim();
                     if (["1", "2", "3", "4"].includes(ans)) {
@@ -73,10 +72,8 @@
                     }
                 }
 
-                // 締め切り
                 if (command === "close") startCloseTimer(parseInt(message) || 30);
 
-                // ポイント配布
                 if (command === "givepoint") {
                     const parts = message.trim().split(/\s+/);
                     const amount = parseInt(parts[0]);
@@ -91,7 +88,6 @@
                     }
                 }
 
-                // 正解報酬設定
                 if (command === "setpoint") {
                     const amount = parseInt(message.trim());
                     if (!isNaN(amount)) {
@@ -100,7 +96,6 @@
                     }
                 }
 
-                // 配当倍率設定
                 if (command === "odds") {
                     const val = parseFloat(message.trim());
                     if (!isNaN(val) && val > 0) {
@@ -108,9 +103,19 @@
                         if (quizActive) updateStatusDisplay();
                     }
                 }
+
+                // 【追加】初期ポイント設定コマンド
+                if (command === "inipoint") {
+                    const newIni = parseInt(message.trim());
+                    if (!isNaN(newIni)) {
+                        const diff = newIni - initialUserPoint;
+                        Object.keys(scores).forEach(id => { scores[id] = (scores[id] || 0) + diff; });
+                        initialUserPoint = newIni;
+                        updateScoreBoard();
+                    }
+                }
             }
 
-            // 参加者の移動
             if (quizActive && ["1", "2", "3", "4"].includes(command)) {
                 let isDefault = false, val = parseInt(message.trim());
                 if (isNaN(val) || val <= 0) { val = CONFIG.DEFAULT_BET; isDefault = true; }
@@ -140,9 +145,13 @@
         function spawnOrMoveCat(user, zoneId, betInput, isDefault) {
             const userId = user.toLowerCase(), targetZone = document.getElementById('zone-' + zoneId), zoneRect = targetZone.getBoundingClientRect();
             const nL = targetZone.offsetLeft + Math.random() * (zoneRect.width - 60), nT = targetZone.offsetTop + Math.random() * (zoneRect.height - 70);
+            
+            // 初めて参加するユーザーに初期値をセット
+            if (scores[userId] === undefined) scores[userId] = initialUserPoint;
+
             if (!participants[userId]) {
-                let actB = (gameMode === "bet") ? Math.min(scores[userId] || 0, betInput) : 0;
-                scores[userId] = (scores[userId] || 0) - actB; totalPool += actB;
+                let actB = (gameMode === "bet") ? Math.min(scores[userId], betInput) : 0;
+                scores[userId] -= actB; totalPool += actB;
                 const el = createCatElement(user); el.style.left = "-100px"; el.style.top = nT + "px";
                 document.getElementById('main-area').appendChild(el);
                 participants[userId] = { el: el, zoneId: zoneId, betAmount: actB };
@@ -151,7 +160,7 @@
             } else {
                 const p = participants[userId]; p.zoneId = zoneId; p.el.style.left = nL + "px"; p.el.style.top = nT + "px";
                 if (gameMode === "bet" && !isDefault) {
-                    let addB = Math.min(scores[userId] || 0, betInput);
+                    let addB = Math.min(scores[userId], betInput);
                     scores[userId] -= addB; p.betAmount += addB; totalPool += addB;
                     p.el.querySelector('.bet-amount-label').innerText = `${p.betAmount}pt`;
                 }
@@ -164,28 +173,15 @@
             quizActive = false; 
             const txt = currentQuestionText; 
             currentQuestionText = ""; 
-
             let winners = [], winB = 0;
             Object.keys(participants).forEach(id => { if(participants[id].zoneId === correctAns) { winners.push(id); winB += participants[id].betAmount; } });
-            
             winners.forEach(id => {
-                // Betモード時、配当倍率(payoutOdds)を適用し小数点切り捨て
-                let amt = (gameMode === "quiz") 
-                    ? currentQuizPoints 
-                    : Math.floor(((participants[id].betAmount / winB) * totalPool) * payoutOdds);
-                scores[id] = (scores[id] || 0) + amt; 
-                participants[id].el.classList.add('happy-jump');
+                let amt = (gameMode === "quiz") ? currentQuizPoints : Math.floor(((participants[id].betAmount / winB) * totalPool) * payoutOdds);
+                scores[id] += amt; participants[id].el.classList.add('happy-jump');
             });
-
             Object.keys(participants).forEach(id => { if(participants[id].zoneId !== correctAns) participants[id].el.classList.add('sink-down'); });
-            
             const modeName = gameMode === "quiz" ? `Quiz (${currentQuizPoints}pt)` : `Bet (Pool: ${totalPool} / Odds: x${payoutOdds})`;
-// 修正後
-document.getElementById('question-box').innerHTML = `
-    <div style="font-size:0.7em; color:#aaa;">[${modeName}]</div>
-    <div>Q: ${txt}</div>
-    <div style="color: #ffee00; margin-top: 5px;">正解 [ ${correctAns} ]</div>
-`;
+            document.getElementById('question-box').innerHTML = `<div style="font-size:0.7em; color:#aaa;">[${modeName}]</div><div>Q: ${txt}</div><div style="color: #ffee00; margin-top: 5px;">正解 [ ${correctAns} ]</div>`;
             updateScoreBoard();
         }
 
