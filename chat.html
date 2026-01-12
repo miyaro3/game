@@ -165,7 +165,7 @@ function startEnding() {
     // 1. まず全員右へ退場
     Object.values(users).forEach(u => {
         u.busy = true; 
-        u.targetX = STAGE_WIDTH + 150; 
+        u.targetX = STAGE_WIDTH + 200; 
         u.targetY = u.y;
     });
 
@@ -198,29 +198,31 @@ function startEnding() {
             u.waveIndex = i; // ウェーブの順番を保存
         });
 
-        // 3. ウェーブの実行ループ
-// startEnding 関数内のウェーブ実行ループ部分
-if (waveInterval) clearInterval(waveInterval);
-waveInterval = setInterval(() => {
-    // 次のウェーブ開始前に古いタイマーを掃除
-    waveTimeouts.forEach(t => clearTimeout(t));
-    waveTimeouts = [];
+// 3. 「さらに3秒後」にウェーブを開始 (整列し終えるのを待つ)
+        setTimeout(() => {
+            if (!isEnding) return; // 待機中に!notendされた場合のガード
+            
+            if (waveInterval) clearInterval(waveInterval);
+            waveInterval = setInterval(() => {
+                waveTimeouts.forEach(t => clearTimeout(t));
+                waveTimeouts = [];
 
-    Object.values(users).forEach(u => {
-        if (u.waveIndex !== undefined) {
-            const tId = setTimeout(() => {
-                if (u.inner && isEnding) { // isEndingの時だけ実行
-                    u.inner.classList.remove('anim-wave');
-                    void u.inner.offsetWidth;
-                    u.inner.classList.add('anim-wave');
-                }
-            }, u.waveIndex * 100);
-            waveTimeouts.push(tId); // IDを保存
-        }
-    });
-}, Math.max(3000, visitLog.length * 100 + 1000));
-    }, 2000);
+                Object.values(users).forEach(u => {
+                    const tId = setTimeout(() => {
+                        if (u.inner && isEnding) {
+                            u.inner.classList.remove('anim-wave');
+                            void u.inner.offsetWidth;
+                            u.inner.classList.add('anim-wave');
+                        }
+                    }, u.waveIndex * 150); // 150ms間隔に少しゆっくりに設定
+                    waveTimeouts.push(tId);
+                });
+            }, Math.max(4000, visitLog.length * 150 + 2000)); 
+        }, 3000); // ★ここが入場完了までの待ち時間
+
+    }, 4000); // ★ここが退場完了までの待ち時間
 }
+
 
 function stopEnding() {
     isEnding = false;
@@ -446,5 +448,4 @@ function stopEnding() {
         loop();
     </script>
 </body>
-
 </html>
