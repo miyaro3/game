@@ -2,9 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Twitch Animal Chat Park - Clean Food Edition</title>
+    <title>Twitch Animal Chat Park - Static Ending Edition</title>
     <style>
-        /* スタイルは変更なし */
         body { margin: 0; overflow: hidden; background: transparent; font-family: 'Arial', sans-serif; cursor: pointer; }
         #stage { width: 100vw; height: 100vh; position: relative; }
         .char-container { position: absolute; width: 50px; height: 50px; display: flex; flex-direction: column; align-items: center; z-index: 10; transition: opacity 1s; }
@@ -23,6 +22,12 @@
         @keyframes dance { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-30px); } }
         .anim-bomb { animation: bomb 0.6s forwards; }
         @keyframes bomb { 0% { transform: scale(1); } 50% { transform: scale(4); opacity: 0.8; background: orange; border-radius: 50%; } 100% { transform: scale(0); opacity: 0; } }
+/* ウェーブ用の一回ジャンプアニメーション */
+.anim-wave { animation: wave-jump 0.6s ease-out; }
+@keyframes wave-jump {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-50px); } /* 跳ねる高さ */
+}
     </style>
 </head>
 <body>
@@ -34,14 +39,16 @@
         const STAGE_WIDTH = window.innerWidth;
         const STAGE_HEIGHT = window.innerHeight;
         const CHAR_SIZE = 50;
-        
+        let waveInterval = null; // ウェーブ管理用
         let globalLifetimeMs = 15 * 60 * 1000;
         let users = {};
+        let visitLog = []; 
         let fireballs = [];
         let foods = [];
         let cleanBar = { x: -100, active: false, speed: 10 };
         let testUserCount = 0;
-
+        let isEnding = false; 
+let waveTimeouts = [];   // ★これを目印として追加
         const SHAPES = [
             ["0100000010","1110000111","1111111111","1121111211","1111331111","1111111111","0111111110","0011111100","0011001100","0000000000"],
             ["0011001100","0111111110","1111111111","1121111211","1113333111","1111111111","0111111110","0011111100","0011001100","0000000000"],
@@ -55,7 +62,9 @@
 
         ComfyJS.onCommand = (user, command, message, flags) => {
             const userId = user.toLowerCase();
-            if (command === "life" && (flags.broadcaster || flags.mod)) {
+            const isAdmin = flags.broadcaster || flags.mod;
+
+            if (command === "life" && isAdmin) {
                 const mins = parseInt(message.trim());
                 if (!isNaN(mins)) {
                     globalLifetimeMs = mins * 60 * 1000;
@@ -63,6 +72,10 @@
                 }
                 return;
             }
+
+            if (command === "end" && isAdmin) { startEnding(); return; }
+            if (command === "notend" && isAdmin) { stopEnding(); return; }
+
             if (!users[userId]) spawnUser(user);
             resetLifetime(users[userId], userId);
             handleAction(users[userId], "!" + command, message, userId);
@@ -85,17 +98,29 @@
         });
 
         function spawnUser(userName, x, y) {
+            const userId = userName.toLowerCase();
+            if (users[userId] && !isEnding) return;
+
+            let logEntry = visitLog.find(l => l.name === userId);
+            if (!logEntry) {
+                logEntry = {
+                    name: userId,
+                    displayName: userName,
+                    color: `hsl(${Math.random() * 360}, 80%, 70%)`,
+                    shapeIdx: Math.floor(Math.random() * SHAPES.length)
+                };
+                visitLog.push(logEntry);
+            }
+
             const container = document.createElement('div');
             container.className = 'char-container';
-            const shapeIdx = Math.floor(Math.random() * SHAPES.length);
-            const mainColor = `hsl(${Math.random() * 360}, 80%, 70%)`;
             const grid = document.createElement('div');
             grid.className = 'pixel-grid';
-            const shapeData = SHAPES[shapeIdx].join("");
+            const shapeData = SHAPES[logEntry.shapeIdx].join("");
             for (let i = 0; i < 100; i++) {
                 const px = document.createElement('div');
                 px.className = 'px';
-                if (shapeData[i] === "1") px.style.backgroundColor = mainColor;
+                if (shapeData[i] === "1") px.style.backgroundColor = logEntry.color;
                 else if (shapeData[i] === "2") px.style.backgroundColor = "black";
                 else if (shapeData[i] === "3") px.style.backgroundColor = "#ffb7c5";
                 grid.appendChild(px);
@@ -104,17 +129,17 @@
             bubble.className = 'bubble';
             const nameTag = document.createElement('div');
             nameTag.className = 'user-name';
-            nameTag.innerText = userName;
+            nameTag.innerText = logEntry.displayName;
 
             container.appendChild(bubble);
             container.appendChild(grid);
             container.appendChild(nameTag);
             document.getElementById('stage').appendChild(container);
 
-            users[userName.toLowerCase()] = {
+            users[userId] = {
                 el: container, inner: grid, bubble: bubble,
-                x: x || Math.random() * (STAGE_WIDTH - CHAR_SIZE),
-                y: y || Math.random() * (STAGE_HEIGHT - CHAR_SIZE),
+                x: x !== undefined ? x : Math.random() * (STAGE_WIDTH - CHAR_SIZE),
+                y: y !== undefined ? y : Math.random() * (STAGE_HEIGHT - CHAR_SIZE),
                 vx: 0, vy: 0, state: 'idle', stateTimer: 50, 
                 busy: false, isFeedingAction: false, falling: false, targetX: null, targetY: null,
                 dieTimer: null
@@ -122,6 +147,7 @@
         }
 
         function resetLifetime(u, userId) {
+            if (isEnding) return; 
             if (u.dieTimer) clearTimeout(u.dieTimer);
             u.el.style.opacity = '1';
             if (globalLifetimeMs <= 0) return;
@@ -133,6 +159,93 @@
             }, globalLifetimeMs);
         }
 
+
+function startEnding() {
+    isEnding = true;
+    // 1. まず全員右へ退場
+    Object.values(users).forEach(u => {
+        u.busy = true; 
+        u.targetX = STAGE_WIDTH + 150; 
+        u.targetY = u.y;
+    });
+
+    // 2. 画面をクリアし、隊列を組んで入場
+    setTimeout(() => {
+        document.getElementById('stage').innerHTML = '';
+        users = {};
+        if (visitLog.length === 0) return;
+
+        const count = visitLog.length;
+        const cols = Math.ceil(Math.sqrt(count));
+        const rows = Math.ceil(count / cols);
+        const cellW = STAGE_WIDTH / (cols + 1);
+        const cellH = STAGE_HEIGHT / (rows + 1);
+
+        visitLog.forEach((log, i) => {
+            const r = Math.floor(i / cols);
+            const c = i % cols;
+            
+            const finalX = cellW * (c + 1) - 25;
+            const finalY = cellH * (r + 1) - 25;
+            const startX = STAGE_WIDTH + 500;
+
+            spawnUser(log.displayName, startX, finalY);
+            
+            const u = users[log.name];
+            u.busy = true;
+            u.targetX = finalX;
+            u.targetY = finalY;
+            u.waveIndex = i; // ウェーブの順番を保存
+        });
+
+        // 3. ウェーブの実行ループ
+// startEnding 関数内のウェーブ実行ループ部分
+if (waveInterval) clearInterval(waveInterval);
+waveInterval = setInterval(() => {
+    // 次のウェーブ開始前に古いタイマーを掃除
+    waveTimeouts.forEach(t => clearTimeout(t));
+    waveTimeouts = [];
+
+    Object.values(users).forEach(u => {
+        if (u.waveIndex !== undefined) {
+            const tId = setTimeout(() => {
+                if (u.inner && isEnding) { // isEndingの時だけ実行
+                    u.inner.classList.remove('anim-wave');
+                    void u.inner.offsetWidth;
+                    u.inner.classList.add('anim-wave');
+                }
+            }, u.waveIndex * 100);
+            waveTimeouts.push(tId); // IDを保存
+        }
+    });
+}, Math.max(3000, visitLog.length * 100 + 1000));
+    }, 2000);
+}
+
+function stopEnding() {
+    isEnding = false;
+    
+    // 1. メインのインターバルを止める
+    if (waveInterval) {
+        clearInterval(waveInterval);
+        waveInterval = null;
+    }
+
+    // 2. 予約されている全 setTimeout をキャンセル
+    waveTimeouts.forEach(t => clearTimeout(t));
+    waveTimeouts = [];
+
+    Object.entries(users).forEach(([id, u]) => {
+        u.busy = false; 
+        u.targetX = null; 
+        u.targetY = null;
+        // 3. すでに付いているアニメーションクラスを即座に消す
+        if (u.inner) u.inner.classList.remove('anim-wave'); 
+        u.bubble.style.opacity = "0"; 
+        u.bubble.classList.remove('show');
+        resetLifetime(u, id);
+    });
+}
         function spawnFood(x, y, ownerId) {
             const foodEl = document.createElement('div');
             foodEl.className = 'food';
@@ -149,19 +262,16 @@
             const foodObj = { el: foodEl, x: posX, y: posY, owner: ownerId };
             foods.push(foodObj);
 
-            // 60秒で自動消滅
             setTimeout(() => {
                 if (foods.includes(foodObj)) {
                     foodEl.style.opacity = '0';
-                    setTimeout(() => {
-                        foodEl.remove();
-                        foods = foods.filter(f => f !== foodObj);
-                    }, 1000);
+                    setTimeout(() => { foodEl.remove(); foods = foods.filter(f => f !== foodObj); }, 1000);
                 }
             }, 60000);
         }
 
         function handleAction(u, cmd, message, userId) {
+            if (isEnding) return; 
             u.inner.classList.remove('anim-shake', 'anim-dance', 'anim-bomb');
             u.targetX = null; u.targetY = null;
             u.isFeedingAction = false;
@@ -231,41 +341,23 @@
                 }
             }
             else if (cmd === "!clean") { 
-                cleanBar.active = true; 
-                cleanBar.x = -100; 
-                document.getElementById('clean-bar').style.display = 'block'; 
-                // 【新規】ごはんもすべて消去
-                foods.forEach(f => f.el.remove());
-                foods = [];
+                cleanBar.active = true; cleanBar.x = -100; document.getElementById('clean-bar').style.display = 'block'; 
+                foods.forEach(f => f.el.remove()); foods = [];
             }
             else if (cmd === "!fire") {
                 let vxf, vyf;
                 const targetName = message.trim().toLowerCase();
                 const target = users[targetName];
-                if (target && target !== u) {
-                    const dx = target.x - u.x; const dy = target.y - u.y;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    vxf = (dx / dist) * 12; vyf = (dy / dist) * 12;
-                } else {
-                    const angle = Math.random() * Math.PI * 2;
-                    vxf = Math.cos(angle) * 12; vyf = Math.sin(angle) * 12;
-                }
-                const fb = document.createElement('div');
-                fb.className = 'fireball'; fb.innerText = "🔥";
+                if (target && target !== u) { const dx = target.x - u.x; const dy = target.y - u.y; const dist = Math.sqrt(dx*dx + dy*dy); vxf = (dx / dist) * 12; vyf = (dy / dist) * 12; } 
+                else { const angle = Math.random() * Math.PI * 2; vxf = Math.cos(angle) * 12; vyf = Math.sin(angle) * 12; }
+                const fb = document.createElement('div'); fb.className = 'fireball'; fb.innerText = "🔥";
                 document.getElementById('stage').appendChild(fb);
                 fireballs.push({ el: fb, x: u.x + 20, y: u.y + 20, vx: vxf, vy: vyf, life: 180, owner: u });
             }
-            else if (cmd === "!fall") {
-                Object.values(users).forEach(target => {
-                    target.vy = 25; target.falling = true; target.busy = false;
-                });
-            }
+            else if (cmd === "!fall") { Object.values(users).forEach(target => { target.vy = 25; target.falling = true; target.busy = false; }); }
         }
 
-        function showBubble(u, text) {
-            u.bubble.innerText = text; u.bubble.classList.add('show');
-            setTimeout(() => u.bubble.classList.remove('show'), 5000);
-        }
+        function showBubble(u, text) { u.bubble.innerText = text; u.bubble.style.opacity = "1"; u.bubble.classList.add('show'); setTimeout(() => { u.bubble.style.opacity = "0"; u.bubble.classList.remove('show'); }, 5000); }
 
         function loop() {
             if (cleanBar.active) {
@@ -276,16 +368,8 @@
             }
 
             fireballs = fireballs.filter(fb => {
-                fb.x += fb.vx; fb.y += fb.vy;
-                fb.el.style.left = fb.x + "px"; fb.el.style.top = fb.y + "px";
-                fb.life--;
-                Object.values(users).forEach(u => {
-                    if (u === fb.owner) return;
-                    const dx = u.x - fb.x; const dy = u.y - fb.y;
-                    if (Math.sqrt(dx*dx + dy*dy) < 40) {
-                        u.vx = fb.vx * 1.5; u.vy = fb.vy * 1.5 - 5; fb.life = 0; u.busy = false;
-                    }
-                });
+                fb.x += fb.vx; fb.y += fb.vy; fb.el.style.left = fb.x + "px"; fb.el.style.top = fb.y + "px"; fb.life--;
+                Object.values(users).forEach(u => { if (u === fb.owner) return; const dx = u.x - fb.x; const dy = u.y - fb.y; if (Math.sqrt(dx*dx + dy*dy) < 40) { u.vx = fb.vx * 1.5; u.vy = fb.vy * 1.5 - 5; fb.life = 0; u.busy = false; } });
                 if (fb.life <= 0) fb.el.remove();
                 return fb.life > 0;
             });
@@ -294,27 +378,13 @@
             list.forEach(([userId, u], i) => {
                 if (cleanBar.active && u.x < cleanBar.x + 40) { u.x = cleanBar.x + 40; u.vx = cleanBar.speed; u.busy = false; }
                 
-                if (!u.busy) {
-                    let nearestFood = null;
-                    let minDist = 150; 
-                    foods.forEach(f => {
-                        if (f.owner === userId) return;
-                        const dx = f.x - u.x; const dy = f.y - u.y;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
-                        if (dist < minDist) { minDist = dist; nearestFood = f; }
-                    });
-
+                if (!u.busy && !isEnding) {
+                    let nearestFood = null; let minDist = 150; 
+                    foods.forEach(f => { if (f.owner === userId) return; const dx = f.x - u.x; const dy = f.y - u.y; const dist = Math.sqrt(dx*dx + dy*dy); if (dist < minDist) { minDist = dist; nearestFood = f; } });
                     if (nearestFood) {
                         const dx = nearestFood.x - u.x; const dy = nearestFood.y - u.y;
-                        if (minDist > 40) { // 中心から40px以内で取得
-                            u.vx += (dx / minDist) * 0.5; u.vy += (dy / minDist) * 0.5;
-                        } else {
-                            nearestFood.el.remove();
-                            foods = foods.filter(f => f !== nearestFood);
-                            u.inner.classList.add('anim-dance');
-                            setTimeout(() => u.inner.classList.remove('anim-dance'), 2000);
-                            resetLifetime(u, userId);
-                        }
+                        if (minDist > 40) { u.vx += (dx / minDist) * 0.5; u.vy += (dy / minDist) * 0.5; } 
+                        else { nearestFood.el.remove(); foods = foods.filter(f => f !== nearestFood); u.inner.classList.add('anim-dance'); setTimeout(() => u.inner.classList.remove('anim-dance'), 2000); resetLifetime(u, userId); }
                     } else if (!u.falling) {
                         u.stateTimer--;
                         if (u.stateTimer <= 0) {
@@ -325,19 +395,33 @@
                     }
                 }
 
+// 移動ロジック
                 if (u.busy && u.targetX !== null) {
-                    const dx = u.targetX - u.x; const dy = u.targetY - u.y;
+                    const dx = u.targetX - u.x; 
+                    const dy = u.targetY - u.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > 2) { u.vx = dx * 0.1; u.vy = dy * 0.1; } 
-                    else { u.x = u.targetX; u.y = u.targetY; u.vx = 0; u.vy = 0; }
-                }
 
+                    if (dist > 1) {
+                        // 10秒程度かけるために、速度係数を 0.1 から 0.02 程度まで下げます
+                        // これにより、滑らかに減速しながら定位置に収まります
+                        u.vx = dx * 0.01; 
+                        u.vy = dy * 0.02;
+                    } else {
+                        u.x = u.targetX; u.y = u.targetY; u.vx = 0; u.vy = 0;
+                        // 到着してもエンディング中は busy のままにして動きを固定
+                    }
+                }
                 u.x += u.vx; u.y += u.vy;
-                if (!u.busy) { u.vx *= 0.96; u.vy *= 0.96; }
-                if (u.x < 0) { u.x = 0; u.vx *= -1; }
-                if (u.x > STAGE_WIDTH - CHAR_SIZE) { u.x = STAGE_WIDTH - CHAR_SIZE; u.vx *= -1; }
-                if (u.y < 0) { u.y = 0; u.vy *= -1; }
-                if (u.y > STAGE_HEIGHT - CHAR_SIZE) { u.y = STAGE_HEIGHT - CHAR_SIZE; u.vy *= -0.4; u.falling = false; }
+                if (!u.busy || isEnding) { u.vx *= 0.95; u.vy *= 0.95; }
+                
+                if (!isEnding) {
+                    if (u.x < 0) { u.x = 0; u.vx *= -1; }
+                    if (u.x > STAGE_WIDTH - CHAR_SIZE) { u.x = STAGE_WIDTH - CHAR_SIZE; u.vx *= -1; }
+                    if (u.y < 0) { u.y = 0; u.vy *= -1; }
+                    if (u.y > STAGE_HEIGHT - CHAR_SIZE) { u.y = STAGE_HEIGHT - CHAR_SIZE; u.vy *= -0.4; u.falling = false; }
+                } else {
+                    if (u.y > STAGE_HEIGHT - CHAR_SIZE - 20) { u.y = STAGE_HEIGHT - CHAR_SIZE - 20; u.vy = 0; }
+                }
 
                 for (let j = i + 1; j < list.length; j++) {
                     const o = list[j][1];
