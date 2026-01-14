@@ -22,12 +22,12 @@
         @keyframes dance { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-30px); } }
         .anim-bomb { animation: bomb 0.6s forwards; }
         @keyframes bomb { 0% { transform: scale(1); } 50% { transform: scale(4); opacity: 0.8; background: orange; border-radius: 50%; } 100% { transform: scale(0); opacity: 0; } }
-/* ウェーブ用の一回ジャンプアニメーション */
-.anim-wave { animation: wave-jump 0.6s ease-out; }
-@keyframes wave-jump {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-50px); } /* 跳ねる高さ */
-}
+        /* ウェーブ用の一回ジャンプアニメーション */
+        .anim-wave { animation: wave-jump 0.6s ease-out; }
+        @keyframes wave-jump {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-50px); } /* 跳ねる高さ */
+        }
     </style>
 </head>
 <body>
@@ -39,7 +39,7 @@
         const STAGE_WIDTH = window.innerWidth;
         const STAGE_HEIGHT = window.innerHeight;
         const CHAR_SIZE = 50;
-        let waveInterval = null; // ウェーブ管理用
+        let waveInterval = null; 
         let globalLifetimeMs = 15 * 60 * 1000;
         let users = {};
         let visitLog = []; 
@@ -48,7 +48,8 @@
         let cleanBar = { x: -100, active: false, speed: 10 };
         let testUserCount = 0;
         let isEnding = false; 
-let waveTimeouts = [];   // ★これを目印として追加
+        let waveTimeouts = [];
+
         const SHAPES = [
             ["0100000010","1110000111","1111111111","1121111211","1111331111","1111111111","0111111110","0011111100","0011001100","0000000000"],
             ["0011001100","0111111110","1111111111","1121111211","1113333111","1111111111","0111111110","0011111100","0011001100","0000000000"],
@@ -56,13 +57,46 @@ let waveTimeouts = [];   // ★これを目印として追加
             ["0100000010","0100000010","0111001110","1111111111","1121111211","1111331111","1111111111","0111111110","0011111100","0011001100","0000000000"]
         ];
 
+        const COLOR_MAP = {
+            "red": 0, "orange": 30, "yellow": 60, "green": 120, 
+            "cyan": 180, "blue": 220, "purple": 280, "pink": 330
+        };
+
         const params = new URLSearchParams(window.location.search);
         const channel = params.get('channel');
         if (channel) ComfyJS.Init(channel);
 
+        // --- 色変更用の関数 (グローバルに配置) ---
+        function updateCharColor(u, userId, color) {
+            if (!u || !u.inner) return;
+            const logEntry = visitLog.find(l => l.name === userId);
+            if (logEntry) logEntry.color = color;
+
+            const shapeData = SHAPES[logEntry.shapeIdx].join("");
+            const pixels = u.inner.querySelectorAll('.px');
+            for (let i = 0; i < 100; i++) {
+                if (shapeData[i] === "1") {
+                    pixels[i].style.backgroundColor = color;
+                }
+            }
+        }
+
         ComfyJS.onCommand = (user, command, message, flags) => {
             const userId = user.toLowerCase();
             const isAdmin = flags.broadcaster || flags.mod;
+
+            // 色変更コマンド
+            const colors = ["white", "red", "pink", "orange", "yellow", "green", "cyan", "blue", "purple", "black"];
+            if (colors.includes(command)) {
+                if (!users[userId]) spawnUser(user);
+                let newColor;
+                if (command === "white") newColor = "hsl(0, 0%, 95%)";
+                else if (command === "black") newColor = "hsl(0, 0%, 20%)";
+                else newColor = `hsl(${COLOR_MAP[command]}, 80%, 70%)`;
+                
+                updateCharColor(users[userId], userId, newColor);
+                return;
+            }
 
             if (command === "life" && isAdmin) {
                 const mins = parseInt(message.trim());
@@ -159,95 +193,73 @@ let waveTimeouts = [];   // ★これを目印として追加
             }, globalLifetimeMs);
         }
 
+        function startEnding() {
+            isEnding = true;
+            Object.values(users).forEach(u => {
+                u.busy = true; 
+                u.targetX = STAGE_WIDTH + 200; 
+                u.targetY = u.y;
+            });
 
-function startEnding() {
-    isEnding = true;
-    // 1. まず全員右へ退場
-    Object.values(users).forEach(u => {
-        u.busy = true; 
-        u.targetX = STAGE_WIDTH + 200; 
-        u.targetY = u.y;
-    });
+            setTimeout(() => {
+                document.getElementById('stage').innerHTML = '';
+                users = {};
+                if (visitLog.length === 0) return;
 
-    // 2. 画面をクリアし、隊列を組んで入場
-    setTimeout(() => {
-        document.getElementById('stage').innerHTML = '';
-        users = {};
-        if (visitLog.length === 0) return;
+                const count = visitLog.length;
+                const cols = Math.ceil(Math.sqrt(count));
+                const cellW = STAGE_WIDTH / (cols + 1);
+                const cellH = STAGE_HEIGHT / (Math.ceil(count / cols) + 1);
 
-        const count = visitLog.length;
-        const cols = Math.ceil(Math.sqrt(count));
-        const rows = Math.ceil(count / cols);
-        const cellW = STAGE_WIDTH / (cols + 1);
-        const cellH = STAGE_HEIGHT / (rows + 1);
-
-        visitLog.forEach((log, i) => {
-            const r = Math.floor(i / cols);
-            const c = i % cols;
-            
-            const finalX = cellW * (c + 1) - 25;
-            const finalY = cellH * (r + 1) - 25;
-            const startX = STAGE_WIDTH + 500;
-
-            spawnUser(log.displayName, startX, finalY);
-            
-            const u = users[log.name];
-            u.busy = true;
-            u.targetX = finalX;
-            u.targetY = finalY;
-            u.waveIndex = i; // ウェーブの順番を保存
-        });
-
-// 3. 「さらに3秒後」にウェーブを開始 (整列し終えるのを待つ)
-        setTimeout(() => {
-            if (!isEnding) return; // 待機中に!notendされた場合のガード
-            
-            if (waveInterval) clearInterval(waveInterval);
-            waveInterval = setInterval(() => {
-                waveTimeouts.forEach(t => clearTimeout(t));
-                waveTimeouts = [];
-
-                Object.values(users).forEach(u => {
-                    const tId = setTimeout(() => {
-                        if (u.inner && isEnding) {
-                            u.inner.classList.remove('anim-wave');
-                            void u.inner.offsetWidth;
-                            u.inner.classList.add('anim-wave');
-                        }
-                    }, u.waveIndex * 150); // 150ms間隔に少しゆっくりに設定
-                    waveTimeouts.push(tId);
+                visitLog.forEach((log, i) => {
+                    const r = Math.floor(i / cols);
+                    const c = i % cols;
+                    const finalX = cellW * (c + 1) - 25;
+                    const finalY = cellH * (r + 1) - 25;
+                    spawnUser(log.displayName, STAGE_WIDTH + 500, finalY);
+                    
+                    const u = users[log.name];
+                    u.busy = true;
+                    u.targetX = finalX;
+                    u.targetY = finalY;
+                    u.waveIndex = i;
                 });
-            }, Math.max(4000, visitLog.length * 150 + 2000)); 
-        }, 3000); // ★ここが入場完了までの待ち時間
 
-    }, 4000); // ★ここが退場完了までの待ち時間
-}
+                setTimeout(() => {
+                    if (!isEnding) return;
+                    if (waveInterval) clearInterval(waveInterval);
+                    waveInterval = setInterval(() => {
+                        waveTimeouts.forEach(t => clearTimeout(t));
+                        waveTimeouts = [];
+                        Object.values(users).forEach(u => {
+                            const tId = setTimeout(() => {
+                                if (u.inner && isEnding) {
+                                    u.inner.classList.remove('anim-wave');
+                                    void u.inner.offsetWidth;
+                                    u.inner.classList.add('anim-wave');
+                                }
+                            }, u.waveIndex * 150);
+                            waveTimeouts.push(tId);
+                        });
+                    }, Math.max(4000, visitLog.length * 150 + 2000)); 
+                }, 3000);
+            }, 4000);
+        }
 
+        function stopEnding() {
+            isEnding = false;
+            if (waveInterval) { clearInterval(waveInterval); waveInterval = null; }
+            waveTimeouts.forEach(t => clearTimeout(t));
+            waveTimeouts = [];
 
-function stopEnding() {
-    isEnding = false;
-    
-    // 1. メインのインターバルを止める
-    if (waveInterval) {
-        clearInterval(waveInterval);
-        waveInterval = null;
-    }
+            Object.entries(users).forEach(([id, u]) => {
+                u.busy = false; u.targetX = null; u.targetY = null;
+                if (u.inner) u.inner.classList.remove('anim-wave'); 
+                u.bubble.style.opacity = "0"; u.bubble.classList.remove('show');
+                resetLifetime(u, id);
+            });
+        }
 
-    // 2. 予約されている全 setTimeout をキャンセル
-    waveTimeouts.forEach(t => clearTimeout(t));
-    waveTimeouts = [];
-
-    Object.entries(users).forEach(([id, u]) => {
-        u.busy = false; 
-        u.targetX = null; 
-        u.targetY = null;
-        // 3. すでに付いているアニメーションクラスを即座に消す
-        if (u.inner) u.inner.classList.remove('anim-wave'); 
-        u.bubble.style.opacity = "0"; 
-        u.bubble.classList.remove('show');
-        resetLifetime(u, id);
-    });
-}
         function spawnFood(x, y, ownerId) {
             const foodEl = document.createElement('div');
             foodEl.className = 'food';
@@ -397,20 +409,14 @@ function stopEnding() {
                     }
                 }
 
-// 移動ロジック
                 if (u.busy && u.targetX !== null) {
                     const dx = u.targetX - u.x; 
                     const dy = u.targetY - u.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-
                     if (dist > 1) {
-                        // 10秒程度かけるために、速度係数を 0.1 から 0.02 程度まで下げます
-                        // これにより、滑らかに減速しながら定位置に収まります
-                        u.vx = dx * 0.02; 
-                        u.vy = dy * 0.02;
+                        u.vx = dx * 0.02; u.vy = dy * 0.02;
                     } else {
                         u.x = u.targetX; u.y = u.targetY; u.vx = 0; u.vy = 0;
-                        // 到着してもエンディング中は busy のままにして動きを固定
                     }
                 }
                 u.x += u.vx; u.y += u.vy;
