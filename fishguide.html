@@ -88,9 +88,9 @@
                 return;
             }
             
-            // ファイルの場所から index.html へのパスを作成
+            // ファイルの場所から fish.html へのパスを作成
             const currentPath = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
-            const finalUrl = `${currentPath}/index.html?channel=${twitchId}`;
+            const finalUrl = `${currentPath}/fish.html?channel=${twitchId}`;
             
             display.innerText = finalUrl;
         }
@@ -121,4 +121,5 @@
         }
     </script>
 </body>
+
 </html>
