@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>いろいろタイル</title>
+  <style>
+    :root {
+      --bg-color: #1a1e29;
+      --panel-bg: #272d3d;
+      --text-color: #f1f5f9;
+      --accent-color: #f472b6; /* パステルピンクのアクセント */
+      --grid-size: 16;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    header {
+      width: 100%;
+      max-width: 520px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #fce7f3;
+      text-align: center;
+    }
+
+    .diff-selector {
+      display: flex;
+      gap: 6px;
+      background: var(--panel-bg);
+      padding: 4px;
+      border-radius: 8px;
+    }
+
+    .diff-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .diff-btn.active {
+      background: var(--accent-color);
+      color: #831843;
+    }
+
+    .status-bar {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--panel-bg);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #cbd5e1;
+    }
+
+    .control-btns {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .btn {
+      background: #334155;
+      color: #f8fafc;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: #475569;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100%;
+      max-width: min(82vh, 520px);
+      aspect-ratio: 1 / 1;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #board {
+      display: grid;
+      width: 100%;
+      height: 100%;
+      gap: 1px;
+      background: #000;
+      padding: 2px;
+      border-radius: 6px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .tile {
+      width: 100%;
+      height: 100%;
+      border-radius: 1px;
+      cursor: pointer;
+      position: relative;
+      box-sizing: border-box;
+      touch-action: none;
+    }
+
+    .tile.selected {
+      outline: 3px solid #ffffff;
+      outline-offset: -3px;
+      z-index: 10;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.9);
+    }
+
+    /* カスタムドラッグ時の直接移動スタイリング */
+    .tile.dragging-custom {
+      position: fixed !important;
+      z-index: 1000 !important;
+      pointer-events: none !important;
+      transform: scale(1.1);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.5), 0 0 0 2px #fff;
+      border-radius: 4px;
+      transition: none !important;
+    }
+
+    .tile.pinned {
+      cursor: default;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tile.pinned::after {
+      content: "•";
+      color: rgba(0, 0, 0, 0.3);
+      font-size: 1.2rem;
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    .tile.correct-flash {
+      animation: flash-anim 0.4s ease-out;
+    }
+
+    @keyframes flash-anim {
+      0% {
+        box-shadow: inset 0 0 12px 6px #ffffff;
+      }
+      100% {
+        box-shadow: inset 0 0 0px 0px transparent;
+      }
+    }
+
+    /* 完成時スタイル */
+    #game-container.completed #board {
+      gap: 0;
+      padding: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+    }
+
+    #game-container.completed .tile {
+      cursor: default;
+    }
+
+    #game-container.completed .tile.pinned::after {
+      display: none;
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: #272d3d;
+      border: 1px solid #334155;
+      padding: 24px;
+      border-radius: 12px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal h2 {
+      color: var(--accent-color);
+      font-size: 1.5rem;
+      margin-bottom: 12px;
+    }
+
+    .modal p {
+      color: #cbd5e1;
+      margin-bottom: 16px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      white-space: pre-line;
+    }
+
+    .modal-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn-share {
+      background: #1d9bf0;
+      color: white;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .btn-share:hover {
+      background: #1a8cd8;
+    }
+
+    .btn-copy {
+      background: #475569;
+    }
+    .btn-copy:hover {
+      background: #64748b;
+    }
+
+    /* 鑑賞モード時のフローティングボタン */
+    #back-to-result-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--accent-color);
+      color: #831843;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+      z-index: 90;
+      display: none;
+      transition: transform 0.2s ease;
+    }
+
+    #back-to-result-btn:hover {
+      transform: scale(1.05);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      background: var(--accent-color);
+      color: #831843;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 200;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>いろいろタイル</h1>
+
+    <div class="diff-selector">
+      <button class="diff-btn" data-size="4">4x4</button>
+      <button class="diff-btn" data-size="8">8x8</button>
+      <button class="diff-btn" data-size="12">12x12</button>
+      <button class="diff-btn active" data-size="16">16x16</button>
+    </div>
+
+    <div class="status-bar">
+      <div>タイム: <span id="time-display">00:00</span></div>
+      <div>手数: <span id="moves-display">0</span></div>
+    </div>
+
+    <div class="control-btns">
+      <button class="btn" id="reset-btn">新しいパズルを生成</button>
+    </div>
+  </header>
+
+  <main id="game-container">
+    <div id="board"></div>
+  </main>
+
+  <button id="back-to-result-btn">🏆 結果画面に戻る</button>
+
+  <!-- Clear Modal -->
+  <div class="modal-overlay" id="clear-modal">
+    <div class="modal">
+      <h2>CLEAR! 🎉</h2>
+      <p id="modal-desc">素晴らしい！色覚が研ぎ澄まされています。</p>
+      <div class="modal-btns">
+        <a id="share-x-btn" target="_blank" class="btn-share">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          Xで結果を投稿
+        </a>
+        <button class="btn btn-copy" id="copy-btn">結果テキストをコピー</button>
+        <button class="btn" id="modal-close-btn" style="background: var(--accent-color); color:#831843;">完成図を確認</button>
+        <button class="btn" id="modal-next-btn">次の色で遊ぶ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">クリップボードにコピーしました！</div>
+
+  <script>
+    let gridSize = 16;
+    let gridTotal = gridSize * gridSize;
+    let targetColors = [];
+    let currentBoard = [];
+    let selectedIndex = null;
+    let moves = 0;
+    let timer = null;
+    let secondsElapsed = 0;
+    let isPlaying = false;
+
+    // Pointer Drag State
+    let activeDragIndex = null;
+    let dragTileEl = null;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let isDragging = false;
+
+    const boardEl = document.getElementById('board');
+    const timeDisplay = document.getElementById('time-display');
+    const movesDisplay = document.getElementById('moves-display');
+    const resetBtn = document.getElementById('reset-btn');
+    const clearModal = document.getElementById('clear-modal');
+    const modalDesc = document.getElementById('modal-desc');
+    const shareXBtn = document.getElementById('share-x-btn');
+    const copyBtn = document.getElementById('copy-btn');
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+    const modalNextBtn = document.getElementById('modal-next-btn');
+    const backToResultBtn = document.getElementById('back-to-result-btn');
+    const diffBtns = document.querySelectorAll('.diff-btn');
+    const gameContainer = document.getElementById('game-container');
+    const toast = document.getElementById('toast');
+
+    function hslToRgb(h, s, l) {
+      s /= 100; l /= 100;
+      const k = n => (n + h / 30) % 12;
+      const a = s * Math.min(l, 1 - l);
+      const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+      return [
+        Math.round(255 * f(0)),
+        Math.round(255 * f(8)),
+        Math.round(255 * f(4))
+      ];
+    }
+
+    function interpolateColor(c1, c2, factor) {
+      return [
+        Math.round(c1[0] + factor * (c2[0] - c1[0])),
+        Math.round(c1[1] + factor * (c2[1] - c1[1])),
+        Math.round(c1[2] + factor * (c2[2] - c1[2]))
+      ];
+    }
+
+    // ミルキーパステル系のカラーテーマ生成
+    function generateMilkyPastelCorners() {
+      const baseHue = Math.floor(Math.random() * 360);
+      const hueSpan = 70 + Math.floor(Math.random() * 70); // 似通ったパステルグラデーション
+      
+      // 彩度は50〜65%（ふんわり）、明度は75〜85%（ミルキーで明るい）に固定
+      const sat = 55 + Math.floor(Math.random() * 10);
+      const lightTL = 78 + Math.floor(Math.random() * 6);
+      const lightTR = 82 + Math.floor(Math.random() * 6);
+      const lightBL = 75 + Math.floor(Math.random() * 6);
+      const lightBR = 84 + Math.floor(Math.random() * 6);
+
+      const tl = hslToRgb((baseHue) % 360, sat, lightTL);
+      const tr = hslToRgb((baseHue + hueSpan * 0.4) % 360, sat, lightTR);
+      const bl = hslToRgb((baseHue + hueSpan * 0.7) % 360, sat, lightBL);
+      const br = hslToRgb((baseHue + hueSpan) % 360, sat, lightBR);
+
+      return { tl, tr, bl, br };
+    }
+
+    function generateTargetColors() {
+      const { tl, tr, bl, br } = generateMilkyPastelCorners();
+      targetColors = new Array(gridTotal);
+
+      for (let r = 0; r < gridSize; r++) {
+        const rowFactor = r / (gridSize - 1);
+        const leftColor = interpolateColor(tl, bl, rowFactor);
+        const rightColor = interpolateColor(tr, br, rowFactor);
+
+        for (let c = 0; c < gridSize; c++) {
+          const colFactor = c / (gridSize - 1);
+          const finalColor = interpolateColor(leftColor, rightColor, colFactor);
+          const idx = r * gridSize + c;
+          targetColors[idx] = `rgb(${finalColor[0]}, ${finalColor[1]}, ${finalColor[2]})`;
+        }
+      }
+    }
+
+    function isPinnedIndex(idx) {
+      const r = Math.floor(idx / gridSize);
+      const c = idx % gridSize;
+      return (r === 0 && c === 0) ||
+             (r === 0 && c === gridSize - 1) ||
+             (r === gridSize - 1 && c === 0) ||
+             (r === gridSize - 1 && c === gridSize - 1);
+    }
+
+    function initGame() {
+      gridTotal = gridSize * gridSize;
+      gameContainer.classList.remove('completed');
+      backToResultBtn.style.display = 'none';
+      generateTargetColors();
+      
+      const shuffleable = [];
+      for (let i = 0; i < gridTotal; i++) {
+        if (!isPinnedIndex(i)) {
+          shuffleable.push(targetColors[i]);
+        }
+      }
+
+      for (let i = shuffleable.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffleable[i], shuffleable[j]] = [shuffleable[j], shuffleable[i]];
+      }
+
+      currentBoard = new Array(gridTotal);
+      let shuffleIdx = 0;
+      for (let i = 0; i < gridTotal; i++) {
+        if (isPinnedIndex(i)) {
+          currentBoard[i] = targetColors[i];
+        } else {
+          currentBoard[i] = shuffleable[shuffleIdx++];
+        }
+      }
+
+      moves = 0;
+      secondsElapsed = 0;
+      selectedIndex = null;
+      movesDisplay.textContent = moves;
+      timeDisplay.textContent = "00:00";
+      
+      stopTimer();
+      startTimer();
+      isPlaying = true;
+
+      renderBoard();
+    }
+
+    function renderBoard() {
+      boardEl.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+      boardEl.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
+      boardEl.innerHTML = '';
+
+      for (let i = 0; i < gridTotal; i++) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.style.backgroundColor = currentBoard[i];
+        tile.dataset.index = i;
+
+        if (isPinnedIndex(i)) {
+          tile.classList.add('pinned');
+        } else {
+          // Pointer Events (カスタムドラッグ)
+          tile.addEventListener('pointerdown', (e) => onPointerDown(e, i));
+        }
+
+        boardEl.appendChild(tile);
+      }
+    }
+
+    // --- Custom Drag Logic (Pointer Events) ---
+    function onPointerDown(e, idx) {
+      if (!isPlaying || isPinnedIndex(idx)) return;
+
+      activeDragIndex = idx;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      isDragging = false;
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    }
+
+    function onPointerMove(e) {
+      if (activeDragIndex === null) return;
+
+      const dist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
+      if (!isDragging && dist > 6) {
+        isDragging = true;
+        
+        const originTile = boardEl.children[activeDragIndex];
+        const rect = originTile.getBoundingClientRect();
+
+        dragTileEl = originTile.cloneNode(true);
+        dragTileEl.classList.add('dragging-custom');
+        dragTileEl.style.width = `${rect.width}px`;
+        dragTileEl.style.height = `${rect.height}px`;
+        dragTileEl.style.left = `${rect.left}px`;
+        dragTileEl.style.top = `${rect.top}px`;
+        document.body.appendChild(dragTileEl);
+
+        originTile.style.opacity = '0.3';
+      }
+
+      if (isDragging && dragTileEl) {
+        const rect = boardEl.children[activeDragIndex].getBoundingClientRect();
+        const newLeft = rect.left + (e.clientX - dragStartX);
+        const newTop = rect.top + (e.clientY - dragStartY);
+        dragTileEl.style.left = `${newLeft}px`;
+        dragTileEl.style.top = `${newTop}px`;
+      }
+    }
+
+    function onPointerUp(e) {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+
+      if (activeDragIndex === null) return;
+
+      if (isDragging) {
+        const originTile = boardEl.children[activeDragIndex];
+        originTile.style.opacity = '1';
+
+        if (dragTileEl) {
+          dragTileEl.remove();
+          dragTileEl = null;
+        }
+
+        const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+        if (targetEl && targetEl.classList.contains('tile')) {
+          const targetIdx = parseInt(targetEl.dataset.index);
+          if (!isNaN(targetIdx) && targetIdx !== activeDragIndex && !isPinnedIndex(targetIdx)) {
+            executeSwap(activeDragIndex, targetIdx);
+          }
+        }
+      } else {
+        handleTileClick(activeDragIndex);
+      }
+
+      activeDragIndex = null;
+      isDragging = false;
+    }
+
+    function handleTileClick(idx) {
+      if (!isPlaying || isPinnedIndex(idx)) return;
+
+      if (selectedIndex === null) {
+        selectedIndex = idx;
+        highlightSelected();
+      } else if (selectedIndex === idx) {
+        selectedIndex = null;
+        highlightSelected();
+      } else {
+        executeSwap(selectedIndex, idx);
+        selectedIndex = null;
+        highlightSelected();
+      }
+    }
+
+    function executeSwap(i, j) {
+      if (i === j || isPinnedIndex(i) || isPinnedIndex(j)) return;
+
+      swapTiles(i, j);
+      moves++;
+      movesDisplay.textContent = moves;
+
+      checkCorrectPosition(i);
+      checkCorrectPosition(j);
+      checkWinCondition();
+    }
+
+    function highlightSelected() {
+      const tiles = boardEl.children;
+      for (let i = 0; i < tiles.length; i++) {
+        if (i === selectedIndex) {
+          tiles[i].classList.add('selected');
+        } else {
+          tiles[i].classList.remove('selected');
+        }
+      }
+    }
+
+    function swapTiles(i, j) {
+      const temp = currentBoard[i];
+      currentBoard[i] = currentBoard[j];
+      currentBoard[j] = temp;
+
+      const tileI = boardEl.children[i];
+      const tileJ = boardEl.children[j];
+
+      tileI.style.backgroundColor = currentBoard[i];
+      tileJ.style.backgroundColor = currentBoard[j];
+    }
+
+    function checkCorrectPosition(idx) {
+      if (currentBoard[idx] === targetColors[idx]) {
+        const tile = boardEl.children[idx];
+        tile.classList.add('correct-flash');
+        setTimeout(() => tile.classList.remove('correct-flash'), 400);
+      }
+    }
+
+    function checkWinCondition() {
+      let isWin = true;
+      for (let i = 0; i < gridTotal; i++) {
+        if (currentBoard[i] !== targetColors[i]) {
+          isWin = false;
+          break;
+        }
+      }
+
+      if (isWin) {
+        isPlaying = false;
+        stopTimer();
+        gameContainer.classList.add('completed');
+        setTimeout(showClearModal, 300);
+      }
+    }
+
+    function startTimer() {
+      timer = setInterval(() => {
+        secondsElapsed++;
+        const mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+        const secs = String(secondsElapsed % 60).padStart(2, '0');
+        timeDisplay.textContent = `${mins}:${secs}`;
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (timer) clearInterval(timer);
+    }
+
+    // 現在のURLを取得してテキストに含める関数
+    function getShareText() {
+      const timeStr = timeDisplay.textContent;
+      const pageUrl = window.location.href;
+      return `【色彩パズル いろいろタイル】\n難易度: ${gridSize}x${gridSize} をクリア！✨\n⏱️ タイム: ${timeStr}\n🔄 手数: ${moves}回\n\n#いろいろタイル #色彩パズル\n${pageUrl}`;
+    }
+
+    function showClearModal() {
+      modalDesc.textContent = `【難易度 ${gridSize}x${gridSize}】\nタイム ${timeDisplay.textContent} / 手数 ${moves}回で完成！`;
+      
+      const shareText = encodeURIComponent(getShareText());
+      shareXBtn.href = `https://twitter.com/intent/tweet?text=${shareText}`;
+      
+      clearModal.classList.add('active');
+    }
+
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(getShareText()).then(() => {
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2000);
+      });
+    });
+
+    // 完成図の確認と結果画面の行き来
+    modalCloseBtn.addEventListener('click', () => {
+      clearModal.classList.remove('active');
+      backToResultBtn.style.display = 'block';
+    });
+
+    backToResultBtn.addEventListener('click', () => {
+      backToResultBtn.style.display = 'none';
+      clearModal.classList.add('active');
+    });
+
+    modalNextBtn.addEventListener('click', () => {
+      clearModal.classList.remove('active');
+      initGame();
+    });
+
+    diffBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        diffBtns.forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        gridSize = parseInt(e.target.dataset.size);
+        initGame();
+      });
+    });
+
+    resetBtn.addEventListener('click', () => {
+      initGame();
+    });
+
+    initGame();
+  </script>
+</body>
+</html>
