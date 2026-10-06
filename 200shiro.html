@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>二百白 - 最も白いタイルを探せ</title>
+  <style>
+    :root {
+      --bg-color: #050505;
+      --panel-bg: #121212;
+      --text-color: #ffffff;
+      --sub-text: #888888;
+      --danger-color: #ff3b30;
+      --border-color: #222222;
+      --accent-color: #1d9bf0;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    header {
+      width: 100%;
+      max-width: 520px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: #ffffff;
+      text-align: center;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: var(--sub-text);
+      text-align: center;
+      letter-spacing: 0.02em;
+    }
+
+    .status-bar {
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      color: #dddddd;
+    }
+
+    .status-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .status-label {
+      font-size: 0.7rem;
+      color: var(--sub-text);
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .status-val {
+      font-size: 1.2rem;
+      font-weight: 700;
+      font-family: monospace;
+      color: #ffffff;
+    }
+
+    .control-btns {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      background: #1c1c1e;
+      color: #ffffff;
+      border: 1px solid var(--border-color);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: #2c2c2e;
+      border-color: #444444;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100%;
+      max-width: min(78vh, 520px);
+      aspect-ratio: 1 / 1;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #board {
+      display: grid;
+      width: 100%;
+      height: 100%;
+      /* 200枚のタイル: 10列 × 20行 */
+      grid-template-columns: repeat(10, 1fr);
+      grid-template-rows: repeat(20, 1fr);
+      gap: 2px;
+      background: #000000;
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.9);
+    }
+
+    .tile {
+      width: 100%;
+      height: 100%;
+      border-radius: 1px;
+      cursor: pointer;
+      transition: transform 0.1s ease;
+      position: relative;
+    }
+
+    .tile:active {
+      transform: scale(0.85);
+    }
+
+    .tile.wrong {
+      animation: shake 0.3s ease-in-out;
+      outline: 2px solid var(--danger-color);
+      z-index: 10;
+    }
+
+    .tile.correct-highlight {
+      outline: 3px solid #ffffff !important;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 1) !important;
+      z-index: 30 !important;
+      transform: scale(1.35) !important;
+      animation: pulse 1.5s infinite alternate;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 10px rgba(255, 255, 255, 0.8); }
+      100% { box-shadow: 0 0 25px rgba(255, 255, 255, 1); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-3px); }
+      40%, 80% { transform: translateX(3px); }
+    }
+
+    /* カラーコードツールチップ */
+    #color-tooltip {
+      position: absolute;
+      background: rgba(18, 18, 18, 0.95);
+      color: #ffffff;
+      border: 1px solid #444444;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-family: monospace;
+      pointer-events: none;
+      z-index: 200;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.8);
+      white-space: nowrap;
+      transform: translate(-50%, -120%);
+    }
+
+    #color-tooltip.show {
+      opacity: 1;
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: #121212;
+      border: 1px solid var(--border-color);
+      padding: 32px 24px;
+      border-radius: 16px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.9);
+    }
+
+    .modal h2 {
+      color: #ffffff;
+      font-size: 1.6rem;
+      margin-bottom: 8px;
+      letter-spacing: 0.05em;
+    }
+
+    .modal .rank-title {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #ffffff;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+
+    .modal p {
+      color: #cccccc;
+      margin-bottom: 24px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      white-space: pre-line;
+    }
+
+    .modal-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn-share-x {
+      background: #000000;
+      color: #ffffff;
+      border: 1px solid #444444;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .btn-share-x:hover {
+      background: #1c1c1e;
+      border-color: #666666;
+    }
+
+    .btn-copy {
+      background: #1e293b;
+      color: #38bdf8;
+      border: 1px solid #0284c7;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .btn-copy:hover {
+      background: #0f172a;
+      border-color: #38bdf8;
+    }
+
+    .btn-primary {
+      background: #ffffff;
+      color: #000000;
+      font-weight: bold;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-primary:hover {
+      background: #e0e0e0;
+    }
+
+    .btn-secondary {
+      background: #2a2a2c;
+      color: #ffffff;
+      border: 1px solid var(--border-color);
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      background: #3a3a3c;
+    }
+
+    /* 鑑賞モード時のフローティングボタン */
+    #back-to-result-btn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #ffffff;
+      color: #000000;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+      z-index: 90;
+      display: none;
+      transition: transform 0.2s ease;
+    }
+
+    #back-to-result-btn:hover {
+      transform: scale(1.05);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      background: var(--danger-color);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.85rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 200;
+      pointer-events: none;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    }
+
+    .toast.info {
+      background: #0284c7;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>二百白</h1>
+    <div class="subtitle">200枚の中から唯一の「完全な純白 (#FFFFFF)」を探せ！</div>
+
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-label">Time</span>
+        <span class="status-val" id="time-display">0.00s</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Miss</span>
+        <span class="status-val" id="attempts-display">0</span>
+      </div>
+    </div>
+
+    <div class="control-btns">
+      <button class="btn" id="reset-btn">シャッフルしてやり直す</button>
+    </div>
+  </header>
+
+  <main id="game-container">
+    <div id="board"></div>
+    <div id="color-tooltip"></div>
+  </main>
+
+  <button id="back-to-result-btn">🏆 結果画面に戻る</button>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="clear-modal">
+    <div class="modal">
+      <h2>🎉 CLEAR!</h2>
+      <div class="rank-title" id="rank-title">【純白の神眼】</div>
+      <p id="modal-desc">タイム: 0.00秒&#10;間違えた回数: 0回</p>
+      <div class="modal-btns">
+        <a id="share-x-btn" target="_blank" class="btn-share-x">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          Xで結果をシェア
+        </a>
+        <button class="btn-copy" id="copy-result-btn">
+          📋 結果テキストをコピー
+        </button>
+        <button class="btn btn-secondary" id="modal-view-btn">完成図（正解位置）を確認</button>
+        <button class="btn btn-primary" id="modal-next-btn">もう一度遊ぶ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">+3秒ペナルティ！それは純白ではありません</div>
+
+  <script>
+    const TOTAL_TILES = 200;
+    const boardEl = document.getElementById('board');
+    const gameContainer = document.getElementById('game-container');
+    const colorTooltip = document.getElementById('color-tooltip');
+    const timeDisplay = document.getElementById('time-display');
+    const attemptsDisplay = document.getElementById('attempts-display');
+    const resetBtn = document.getElementById('reset-btn');
+    const clearModal = document.getElementById('clear-modal');
+    const modalDesc = document.getElementById('modal-desc');
+    const rankTitleEl = document.getElementById('rank-title');
+    const shareXBtn = document.getElementById('share-x-btn');
+    const copyResultBtn = document.getElementById('copy-result-btn');
+    const modalNextBtn = document.getElementById('modal-next-btn');
+    const modalViewBtn = document.getElementById('modal-view-btn');
+    const backToResultBtn = document.getElementById('back-to-result-btn');
+    const toast = document.getElementById('toast');
+
+    let pureWhiteIndex = -1;
+    let attempts = 0;
+    let startTime = null;
+    let timerAnimFrame = null;
+    let isPlaying = false;
+    let penaltySeconds = 0;
+    let isInspectionMode = false;
+    let currentShareText = '';
+
+    function rgbToHex(rgbStr) {
+      const match = rgbStr.match(/\d+/g);
+      if (!match) return '#FFFFFF';
+      const r = parseInt(match[0]).toString(16).padStart(2, '0');
+      const g = parseInt(match[1]).toString(16).padStart(2, '0');
+      const b = parseInt(match[2]).toString(16).padStart(2, '0');
+      return `#${r}${g}${b}`.toUpperCase();
+    }
+
+    function generateUnique200Whites() {
+      const colors = [];
+      const pureWhite = 'rgb(255, 255, 255)';
+
+      for (let i = 0; i < TOTAL_TILES - 1; i++) {
+        const offsetR = Math.floor((i % 6) * 4) + Math.floor(Math.random() * 3);
+        const offsetG = Math.floor(((i / 6) % 6) * 4) + Math.floor(Math.random() * 3);
+        const offsetB = Math.floor((i % 8) * 3) + Math.floor(Math.random() * 3);
+
+        let r = Math.max(225, 255 - offsetR);
+        let g = Math.max(225, 255 - offsetG);
+        let b = Math.max(225, 255 - offsetB);
+
+        if (r === 255 && g === 255 && b === 255) {
+          b = 254;
+        }
+
+        colors.push(`rgb(${r}, ${g}, ${b})`);
+      }
+
+      colors.push(pureWhite);
+
+      for (let i = colors.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [colors[i], colors[j]] = [colors[j], colors[i]];
+      }
+
+      return colors;
+    }
+
+    function initGame() {
+      if (timerAnimFrame) {
+        cancelAnimationFrame(timerAnimFrame);
+        timerAnimFrame = null;
+      }
+      
+      isPlaying = true;
+      isInspectionMode = false;
+      attempts = 0;
+      penaltySeconds = 0;
+
+      hideTooltip();
+      backToResultBtn.style.display = 'none';
+      attemptsDisplay.textContent = '0';
+      timeDisplay.textContent = '0.00s';
+      boardEl.innerHTML = '';
+
+      const colors = generateUnique200Whites();
+      pureWhiteIndex = colors.indexOf('rgb(255, 255, 255)');
+
+      colors.forEach((color, idx) => {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.style.backgroundColor = color;
+        tile.dataset.color = color;
+        tile.dataset.index = idx;
+
+        tile.addEventListener('click', () => handleTileClick(idx, tile));
+        
+        tile.addEventListener('mouseenter', (e) => showTooltip(e, tile));
+        tile.addEventListener('mousemove', (e) => moveTooltip(e));
+        tile.addEventListener('mouseleave', hideTooltip);
+
+        boardEl.appendChild(tile);
+      });
+
+      // 画面読み込み/初期化と同時に即時タイマースタート
+      startTimer();
+    }
+
+    function showTooltip(e, tile) {
+      if (!isInspectionMode) return;
+
+      const rgb = tile.dataset.color;
+      const hex = rgbToHex(rgb);
+      const isPure = (tile.dataset.index == pureWhiteIndex);
+
+      colorTooltip.innerHTML = isPure 
+        ? `<strong style="color:#ffffff; text-decoration: underline;">✨ 純白 ${hex}</strong><br>${rgb}` 
+        : `<strong>${hex}</strong><br>${rgb}`;
+
+      moveTooltip(e);
+      colorTooltip.classList.add('show');
+    }
+
+    function moveTooltip(e) {
+      if (!isInspectionMode) return;
+      const rect = gameContainer.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      colorTooltip.style.left = `${x}px`;
+      colorTooltip.style.top = `${y}px`;
+    }
+
+    function hideTooltip() {
+      colorTooltip.classList.remove('show');
+    }
+
+    function startTimer() {
+      startTime = performance.now();
+
+      function update() {
+        if (!isPlaying) return;
+        const now = performance.now();
+        const elapsed = (now - startTime) / 1000 + penaltySeconds;
+        timeDisplay.textContent = elapsed.toFixed(2) + 's';
+        timerAnimFrame = requestAnimationFrame(update);
+      }
+
+      timerAnimFrame = requestAnimationFrame(update);
+    }
+
+    function handleTileClick(idx, tileEl) {
+      if (!isPlaying) return;
+
+      if (idx === pureWhiteIndex) {
+        isPlaying = false;
+        cancelAnimationFrame(timerAnimFrame);
+        
+        const now = performance.now();
+        const finalTime = ((now - startTime) / 1000 + penaltySeconds).toFixed(2);
+
+        tileEl.classList.add('correct-highlight');
+
+        setTimeout(() => showClearModal(finalTime), 400);
+      } else {
+        attempts++;
+        penaltySeconds += 3.0;
+        attemptsDisplay.textContent = attempts;
+
+        tileEl.classList.remove('wrong');
+        void tileEl.offsetWidth; // リフロー発生
+        tileEl.classList.add('wrong');
+
+        showToast('+3秒ペナルティ！それは純白ではありません', false);
+      }
+    }
+
+    function showToast(msg, isInfo = false) {
+      toast.textContent = msg;
+      if (isInfo) {
+        toast.classList.add('info');
+      } else {
+        toast.classList.remove('info');
+      }
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    function getRankTitle(time, att) {
+      const t = parseFloat(time);
+      if (att === 0 && t < 5) return '【伝説のアンミカ級】';
+      if (att === 0 && t < 12) return '【純白の神眼】';
+      if (att <= 2 && t < 25) return '【色彩マスター】';
+      if (att <= 5 && t < 45) return '【一般の白鑑定士】';
+      return '【白迷子】';
+    }
+
+    function showClearModal(time) {
+      const rank = getRankTitle(time, attempts);
+      rankTitleEl.textContent = rank;
+      modalDesc.textContent = `記録: ${time} 秒\n間違えた回数: ${attempts} 回 (ペナルティ +${attempts * 3}秒含む)`;
+
+      currentShareText = `【二百白】\n200枚の白の中から本物の純白を見つけ出しました！✨\n\n称号: ${rank}\n⏱️ タイム: ${time}秒\n❌ お手つき: ${attempts}回\n\n#二百白 #色彩パズル\n${window.location.href}`;
+
+      shareXBtn.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(currentShareText)}`;
+
+      clearModal.classList.add('active');
+    }
+
+    // コピー機能の実装 (execCommandとwriteTextの両方に対応)
+    copyResultBtn.addEventListener('click', () => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(currentShareText).then(() => {
+          showToast('📋 結果をクリップボードにコピーしました！', true);
+        }).catch(() => {
+          fallbackCopyText(currentShareText);
+        });
+      } else {
+        fallbackCopyText(currentShareText);
+      }
+    });
+
+    function fallbackCopyText(text) {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        showToast('📋 結果をクリップボードにコピーしました！', true);
+      } catch (err) {
+        showToast('コピーに失敗しました', false);
+      }
+      document.body.removeChild(textArea);
+    }
+
+    modalViewBtn.addEventListener('click', () => {
+      isInspectionMode = true;
+      clearModal.classList.remove('active');
+      backToResultBtn.style.display = 'block';
+    });
+
+    backToResultBtn.addEventListener('click', () => {
+      isInspectionMode = false;
+      hideTooltip();
+      backToResultBtn.style.display = 'none';
+      clearModal.classList.add('active');
+    });
+
+    resetBtn.addEventListener('click', initGame);
+    modalNextBtn.addEventListener('click', () => {
+      clearModal.classList.remove('active');
+      initGame();
+    });
+
+    // 画面表示直後にゲームおよびタイマーを即時スタート
+    window.onload = function() {
+      initGame();
+    };
+  </script>
+</body>
+</html>
