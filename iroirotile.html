@@ -38,11 +38,11 @@
     header {
       width: 100%;
       max-width: 520px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
 
     h1 {
@@ -51,6 +51,46 @@
       letter-spacing: 0.05em;
       color: #fce7f3;
       text-align: center;
+    }
+
+    /* ルール＆操作方法パネル */
+    .rule-card {
+      width: 100%;
+      background: var(--panel-bg);
+      border: 1px solid #334155;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      line-height: 1.45;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .rule-title {
+      font-weight: bold;
+      color: var(--accent-color);
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .rule-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .rule-badge {
+      background: #334155;
+      color: #f8fafc;
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      font-weight: 600;
     }
 
     .diff-selector {
@@ -93,7 +133,6 @@
     .control-btns {
       display: flex;
       gap: 8px;
-      margin-top: 4px;
     }
 
     .btn {
@@ -115,7 +154,7 @@
     #game-container {
       position: relative;
       width: 100%;
-      max-width: min(82vh, 520px);
+      max-width: min(76vh, 520px);
       aspect-ratio: 1 / 1;
       margin: 0 auto;
       display: flex;
@@ -172,7 +211,7 @@
 
     .tile.pinned::after {
       content: "•";
-      color: rgba(0, 0, 0, 0.3);
+      color: rgba(0, 0, 0, 0.35);
       font-size: 1.2rem;
       font-weight: bold;
       line-height: 1;
@@ -334,6 +373,19 @@
   <header>
     <h1>いろいろタイル</h1>
 
+    <!-- ルール・操作説明カード -->
+    <div class="rule-card">
+      <div class="rule-title">🎨 ルール & 操作方法</div>
+      <div class="rule-item">
+        <span class="rule-badge">ルール</span>
+        <span>4角の点（•）が付いた固定タイルをヒントに、グラデーションが綺麗に繋がるようタイルを並べ替えましょう。</span>
+      </div>
+      <div class="rule-item">
+        <span class="rule-badge">操作</span>
+        <span>タイルを<b>タップして選択＆入れ替え</b>、または<b>ドラッグ＆ドロップ</b>で動かせます。</span>
+      </div>
+    </div>
+
     <div class="diff-selector">
       <button class="diff-btn" data-size="4">4x4</button>
       <button class="diff-btn" data-size="8">8x8</button>
@@ -429,12 +481,10 @@
       ];
     }
 
-    // ミルキーパステル系のカラーテーマ生成
     function generateMilkyPastelCorners() {
       const baseHue = Math.floor(Math.random() * 360);
-      const hueSpan = 70 + Math.floor(Math.random() * 70); // 似通ったパステルグラデーション
+      const hueSpan = 70 + Math.floor(Math.random() * 70);
       
-      // 彩度は50〜65%（ふんわり）、明度は75〜85%（ミルキーで明るい）に固定
       const sat = 55 + Math.floor(Math.random() * 10);
       const lightTL = 78 + Math.floor(Math.random() * 6);
       const lightTR = 82 + Math.floor(Math.random() * 6);
@@ -531,7 +581,6 @@
         if (isPinnedIndex(i)) {
           tile.classList.add('pinned');
         } else {
-          // Pointer Events (カスタムドラッグ)
           tile.addEventListener('pointerdown', (e) => onPointerDown(e, i));
         }
 
@@ -539,7 +588,6 @@
       }
     }
 
-    // --- Custom Drag Logic (Pointer Events) ---
     function onPointerDown(e, idx) {
       if (!isPlaying || isPinnedIndex(idx)) return;
 
@@ -701,7 +749,6 @@
       if (timer) clearInterval(timer);
     }
 
-    // 現在のURLを取得してテキストに含める関数
     function getShareText() {
       const timeStr = timeDisplay.textContent;
       const pageUrl = window.location.href;
@@ -724,7 +771,6 @@
       });
     });
 
-    // 完成図の確認と結果画面の行き来
     modalCloseBtn.addEventListener('click', () => {
       clearModal.classList.remove('active');
       backToResultBtn.style.display = 'block';
